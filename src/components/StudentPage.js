@@ -66,14 +66,15 @@ const markDeviceTimedInToday = () => {
     }
 
     // ❌ BLOCK if device already timed in today
-if (hasDeviceTimedInToday()) {
-  toast.error('THIS DEVICE HAS ALREADY RECORDED ATTENDANCE TODAY', {
+if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
+  toast.error('THIS DEVICE HAS ALREADY TIMED IN TODAY', {
     duration: 5000,
     className: 'bg-gray-900 text-white border border-red-500/50',
   });
   setShowScanner(false);
   return;
 }
+
 
 
     try {
@@ -95,7 +96,10 @@ if (hasDeviceTimedInToday()) {
       const updatedRecords = [...attendanceRecords, newRecord];
       setAttendanceRecords(updatedRecords);
       localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+      if (attendanceType === 'time-in') {
       markDeviceTimedInToday();
+}
+
 
       toast.success('ATTENDANCE RECORDED - ' + (attendanceType === 'time-in' ? 'TIME IN' : 'TIME OUT') + ' | ' + studentName, { 
         duration: 4000,
