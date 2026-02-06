@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { QRScanner } from './QRScanner';
-import { NetworkDetector} from './NetworkDetector';
+import { NetworkDetector } from './NetworkDetector';
 import { WifiOff, UserCircle, LogIn, LogOut, Zap, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast, Toaster } from 'sonner';
+// IMPORT SUPABASE CLIENT
+import { supabase } from '../lib/supabaseClient'; 
 
 export function StudentPage({ onBack }) {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
@@ -28,18 +30,17 @@ export function StudentPage({ onBack }) {
   }, []);
 
   // === DEVICE / DAILY ATTENDANCE CHECK ===
-const getTodayDate = () => {
-  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-};
+  const getTodayDate = () => {
+    return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  };
 
-const hasDeviceTimedInToday = () => {
-  return localStorage.getItem('device_attendance_date') === getTodayDate();
-};
+  const hasDeviceTimedInToday = () => {
+    return localStorage.getItem('device_attendance_date') === getTodayDate();
+  };
 
-const markDeviceTimedInToday = () => {
-  localStorage.setItem('device_attendance_date', getTodayDate());
-};
-
+  const markDeviceTimedInToday = () => {
+    localStorage.setItem('device_attendance_date', getTodayDate());
+  };
 
   const handleNetworkDetected = (isConnected, network) => {
     setIsNetworkAuthorized(isConnected);
@@ -66,16 +67,14 @@ const markDeviceTimedInToday = () => {
     }
 
     // ❌ BLOCK if device already timed in today
-if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
-  toast.error('THIS DEVICE HAS ALREADY TIMED IN TODAY', {
-    duration: 5000,
-    className: 'bg-gray-900 text-white border border-red-500/50',
-  });
-  setShowScanner(false);
-  return;
-}
-
-
+    if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
+      toast.error('THIS DEVICE HAS ALREADY TIMED IN TODAY', {
+        duration: 5000,
+        className: 'bg-gray-900 text-white border border-red-500/50',
+      });
+      setShowScanner(false);
+      return;
+    }
 
     try {
       const qrData = JSON.parse(decodedText);
@@ -85,7 +84,20 @@ if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
         throw new Error('Invalid QR code format');
       }
 
+      // === NEW: INSERT TO SUPABASE DATABASE ===
+      const { error: dbError } = await supabase
+        .from('attendance_logs')
+        .insert([
+          { 
+            student_name: studentName, 
+            student_id: qrData.sessionId, 
+            status: attendanceType === 'time-in' ? 'Time In' : 'Time Out'
+          }
+        ]);
 
+      if (dbError) throw dbError;
+
+      // === UPDATE LOCAL UI ===
       const newRecord = {
         id: `${Date.now()}-${Math.random()}`,
         name: studentName,
@@ -96,10 +108,10 @@ if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
       const updatedRecords = [...attendanceRecords, newRecord];
       setAttendanceRecords(updatedRecords);
       localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+      
       if (attendanceType === 'time-in') {
-      markDeviceTimedInToday();
-}
-
+        markDeviceTimedInToday();
+      }
 
       toast.success('ATTENDANCE RECORDED - ' + (attendanceType === 'time-in' ? 'TIME IN' : 'TIME OUT') + ' | ' + studentName, { 
         duration: 4000,
@@ -109,7 +121,8 @@ if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
       setShowScanner(false);
       setStudentName('');
     } catch (error) {
-      toast.error('INVALID QR CODE - Please scan a valid attendance QR code', {
+      console.error('Submission Error:', error.message);
+      toast.error('ERROR: ' + error.message, {
         className: 'bg-gray-900 text-white border border-red-500/50',
       });
       setShowScanner(false);
@@ -233,7 +246,7 @@ if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
                     <UserCircle className="size-10 sm:size-12 text-white" />
                   </motion.div>
                   <h2 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2 font-mono">
-                    {'>'}  RECORD ATTENDANCE
+                    {'>'}  RECORD ATTENDANCE
                   </h2>
                   <p className="text-gray-400 text-xs sm:text-sm font-mono px-4">
                     Scan QR while connected to authorized network
@@ -355,7 +368,7 @@ if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-20 blur"></div>
                 <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6">
                   <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 mb-4 font-mono">
-                    {'>'}  RECENT ACTIVITY
+                    {'>'}  RECENT ACTIVITY
                   </h3>
                   <div className="space-y-2">
                     {attendanceRecords
