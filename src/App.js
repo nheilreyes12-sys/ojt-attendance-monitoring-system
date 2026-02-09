@@ -97,12 +97,54 @@ function AdminLogin({ onBack }) {
 }
 
 // --- Main App Component ---
+// export default function App() {
+//   const [currentPage, setCurrentPage] = useState('home');
+//   const [session, setSession] = useState(null);
+//   const [initializing, setInitializing] = useState(true);
+
+//   // Check for session on mount and listen for changes
+//   useEffect(() => {
+//     supabase.auth.getSession().then(({ data: { session } }) => {
+//       setSession(session);
+//       setInitializing(false);
+//     });
+
+//     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+//       setSession(session);
+//     });
+
+//     return () => subscription.unsubscribe();
+//   }, []);
+
+//   const handleLogout = async () => {
+//     await supabase.auth.signOut();
+//     setCurrentPage('home');
+//   };
+
+//   // Prevent flicker during session check
+//   if (initializing) return null;
+
+//   // Routing Logic
+//   if (currentPage === 'student') {
+//     return <StudentPage onBack={() => setCurrentPage('home')} />;
+//   }
+
+//   if (currentPage === 'admin') {
+//     if (!session) {
+//       return <AdminLogin onBack={() => setCurrentPage('home')} />;
+//     }
+//     return <AdminPage onBack={handleLogout} />;
+//   }
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [session, setSession] = useState(null);
   const [initializing, setInitializing] = useState(true);
+  
+  // NEW: State to hold database records
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [officeSSID, setOfficeSSID] = useState('Steerhub First Floor');
 
-  // Check for session on mount and listen for changes
+  // Check for session and setup listeners
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -116,12 +158,47 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // NEW: Fetch data whenever the session changes or when Admin page is opened
+  useEffect(() => {
+    if (session) {
+      fetchAttendance();
+      
+      // Optional: Set up real-time listener
+      const channel = supabase
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, () => {
+          fetchAttendance();
+        })
+        .subscribe();
+
+      return () => supabase.removeChannel(channel);
+    }
+  }, [session]);
+
+  const fetchAttendance = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (error) throw error;
+      setAttendanceRecords(data || []);
+    } catch (err) {
+      console.error('Error fetching logs:', err.message);
+    }
+  };
+
+  const handleUpdateSSID = (newSSID) => {
+    setOfficeSSID(newSSID);
+    localStorage.setItem('officeSSID', newSSID);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentPage('home');
   };
 
-  // Prevent flicker during session check
   if (initializing) return null;
 
   // Routing Logic
@@ -133,9 +210,16 @@ export default function App() {
     if (!session) {
       return <AdminLogin onBack={() => setCurrentPage('home')} />;
     }
-    return <AdminPage onBack={handleLogout} />;
+    // IMPORTANT: Pass the records and SSID here
+    return (
+      <AdminPage 
+        records={attendanceRecords} 
+        officeSSID={officeSSID} 
+        onUpdateSSID={handleUpdateSSID}
+        onBack={handleLogout} 
+      />
+    );
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-x-hidden">
       {/* Background elements */}

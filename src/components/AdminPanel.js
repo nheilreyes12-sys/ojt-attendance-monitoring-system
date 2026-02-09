@@ -42,9 +42,17 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
 const groupedRecords = useMemo(() => {
   const groups = {};
 
+  // Siguraduhin na ang records ay array bago i-loop
+  if (!Array.isArray(records)) return [];
+
   records.forEach(r => {
+    // 1. Kunin ang pangalan (fallback sa iba't ibang posibleng column names)
     const name = (r.student_name || r.studentName || r.name || 'Unknown').trim();
+    
+    // 2. Ayusin ang Petsa
     const dateObj = new Date(r.timestamp || r.created_at);
+    if (isNaN(dateObj.getTime())) return; // Skip kung invalid date
+
     const dateKey = dateObj.toLocaleDateString();
     const key = `${name}-${dateKey}`;
 
@@ -55,11 +63,12 @@ const groupedRecords = useMemo(() => {
         date: dateKey,
         timeIn: null,
         timeOut: null,
-        task: 'No task submitted', // Default
+        task: 'No task submitted',
         timestamp: r.timestamp || r.created_at 
       };
     }
 
+    // 3. Status Check (Dapat tugma sa 'Time In' at 'Time Out' na sinusulat sa StudentPage)
     const status = (r.status || '').toLowerCase().trim();
 
     if (status === 'time in' || status === 'timein') {
@@ -67,7 +76,6 @@ const groupedRecords = useMemo(() => {
         hour: '2-digit', 
         minute: '2-digit' 
       });
-      // Huwag i-update ang task dito dahil "Ongoing..." ang default ng Time In
     } 
     else if (status === 'time out' || status === 'timeout') {
       groups[key].timeOut = dateObj.toLocaleTimeString([], { 
@@ -75,10 +83,9 @@ const groupedRecords = useMemo(() => {
         minute: '2-digit' 
       });
       
-      // Kuhanin ang task accomplishment mula sa database column
-      // Chine-check kung may laman at hindi default string
+      // Kunin ang task mula sa 'task_accomplishment' column ng Supabase
       if (r.task_accomplishment && r.task_accomplishment !== 'Ongoing...') {
-      groups[key].task = r.task_accomplishment;
+        groups[key].task = r.task_accomplishment;
       }
     }
   });
