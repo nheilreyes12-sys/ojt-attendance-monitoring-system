@@ -17,7 +17,7 @@ export function StudentPage({ onBack }) {
   const [attendanceType, setAttendanceType] = useState('time-in');
   const [officeSSID, setOfficeSSID] = useState('Steerhub First Floor');
   const [isNetworkAuthorized, setIsNetworkAuthorized] = useState(false);
-  const [detectedNetwork, setDetectedNetwork] = useState('');
+  // const [detectedNetwork, setDetectedNetwork] = useState('');
 
   // Load attendance records and office SSID from localStorage
   useEffect(() => {
@@ -47,7 +47,7 @@ export function StudentPage({ onBack }) {
 
   const handleNetworkDetected = (isConnected, network) => {
     setIsNetworkAuthorized(isConnected);
-    setDetectedNetwork(network);
+    // setDetectedNetwork(network);
   };
 
 const handleScanSuccess = async (decodedText) => {
