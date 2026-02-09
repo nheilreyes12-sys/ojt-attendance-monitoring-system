@@ -4,7 +4,7 @@ import { Shield, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Toaster } from 'sonner';
 // Import the supabase client
-import { supabase } from './lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
 export function AdminPage({ onBack }) {
   const [attendanceRecords, setAttendanceRecords] = useState([]);

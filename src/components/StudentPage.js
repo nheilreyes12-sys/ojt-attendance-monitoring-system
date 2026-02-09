@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { QRScanner } from './QRScanner';
 import { NetworkDetector } from './NetworkDetector';
-import { WifiOff, UserCircle, LogIn, LogOut, Zap, ArrowLeft } from 'lucide-react';
+import { WifiOff, UserCircle, LogIn, LogOut, Zap, ArrowLeft, ClipboardList } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast, Toaster } from 'sonner';
 // IMPORT SUPABASE CLIENT
@@ -11,6 +11,8 @@ export function StudentPage({ onBack }) {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
   const [studentName, setStudentName] = useState('');
+  // NEW: State for daily task accomplishment
+  const [dailyTask, setDailyTask] = useState('');
   const [attendanceType, setAttendanceType] = useState('time-in');
   const [officeSSID, setOfficeSSID] = useState('Steerhub First Floor');
   const [isNetworkAuthorized, setIsNetworkAuthorized] = useState(false);
@@ -56,6 +58,15 @@ export function StudentPage({ onBack }) {
       return;
     }
 
+    // NEW: Block Time Out if task field is empty
+    if (attendanceType === 'time-out' && !dailyTask.trim()) {
+      toast.error('REQUIRED: Please enter your daily task accomplishment before timing out', {
+        className: 'bg-gray-900 text-white border border-orange-500/50',
+      });
+      setShowScanner(false);
+      return;
+    }
+
     // Check network authorization
     if (!isNetworkAuthorized) {
       toast.error('NETWORK ACCESS DENIED - Connected to: ' + detectedNetwork + ' - Required: ' + officeSSID, { 
@@ -84,14 +95,16 @@ export function StudentPage({ onBack }) {
         throw new Error('Invalid QR code format');
       }
 
-      // === NEW: INSERT TO SUPABASE DATABASE ===
+      // === INSERT TO SUPABASE DATABASE ===
       const { error: dbError } = await supabase
         .from('attendance_logs')
         .insert([
           { 
             student_name: studentName, 
             student_id: qrData.sessionId, 
-            status: attendanceType === 'time-in' ? 'Time In' : 'Time Out'
+            status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
+            // Ensure your Supabase table has a column named 'task_accomplishment'
+            task_accomplishment: dailyTask 
           }
         ]);
 
@@ -103,6 +116,7 @@ export function StudentPage({ onBack }) {
         name: studentName,
         timestamp: Date.now(),
         type: attendanceType,
+        task: dailyTask // Store locally too
       };
 
       const updatedRecords = [...attendanceRecords, newRecord];
@@ -118,8 +132,12 @@ export function StudentPage({ onBack }) {
         className: 'bg-gray-900 text-white border border-cyan-500/50',
       });
       
+      // Reset logic
       setShowScanner(false);
-      setStudentName('');
+      if (attendanceType === 'time-out') {
+        setStudentName('');
+        setDailyTask(''); // Clear task after successful timeout
+      }
     } catch (error) {
       console.error('Submission Error:', error.message);
       toast.error('ERROR: ' + error.message, {
@@ -137,6 +155,14 @@ export function StudentPage({ onBack }) {
     if (!studentName.trim()) {
       toast.error('Please enter your name first', {
         className: 'bg-gray-900 text-white border border-red-500/50',
+      });
+      return;
+    }
+
+    // Guard for Time Out scanning
+    if (attendanceType === 'time-out' && !dailyTask.trim()) {
+      toast.error('Task accomplishment is required for Time Out', {
+        className: 'bg-gray-900 text-white border border-orange-500/50',
       });
       return;
     }
@@ -170,18 +196,12 @@ export function StudentPage({ onBack }) {
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-cyan-500/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-          }}
+          animate={{ x: [0, 100, 0], y: [0, -100, 0] }}
           transition={{ duration: 20, repeat: Infinity }}
         />
         <motion.div
           className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-purple-500/10 rounded-full blur-3xl"
-          animate={{
-            x: [0, -100, 0],
-            y: [0, 100, 0],
-          }}
+          animate={{ x: [0, -100, 0], y: [0, 100, 0] }}
           transition={{ duration: 15, repeat: Infinity }}
         />
       </div>
@@ -210,7 +230,6 @@ export function StudentPage({ onBack }) {
         {/* Content */}
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-            {/* Network Status */}
             <NetworkDetector 
               officeSSID={officeSSID}
               onNetworkDetected={handleNetworkDetected}
@@ -248,13 +267,11 @@ export function StudentPage({ onBack }) {
                   <h2 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2 font-mono">
                     {'>'}  RECORD ATTENDANCE
                   </h2>
-                  <p className="text-gray-400 text-xs sm:text-sm font-mono px-4">
-                    Scan QR while connected to authorized network
-                  </p>
                 </div>
 
                 {!showScanner ? (
                   <div className="space-y-4 sm:space-y-6">
+                    {/* Name Input */}
                     <div>
                       <label className="block text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-2">
                         Your Name
@@ -264,10 +281,36 @@ export function StudentPage({ onBack }) {
                         value={studentName}
                         onChange={(e) => setStudentName(e.target.value)}
                         placeholder="Enter your full name"
-                        className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none text-white font-mono placeholder-gray-600"
+                        className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyan-500 outline-none text-white font-mono placeholder-gray-600"
                       />
                     </div>
 
+                    {/* NEW: Task Accomplishment Field */}
+                    <div>
+                      <label className="flex justify-between items-center text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-2">
+                        <span>Daily Task Accomplishment</span>
+                        {!hasDeviceTimedInToday() && (
+                          <span className="text-[10px] text-orange-500 lowercase opacity-70">Enables after Time In</span>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <textarea
+                          value={dailyTask}
+                          onChange={(e) => setDailyTask(e.target.value)}
+                          disabled={!hasDeviceTimedInToday()}
+                          placeholder={hasDeviceTimedInToday() ? "What did you work on today?" : "Field locked until Time In recorded."}
+                          rows={3}
+                          className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-gray-950 border rounded-lg outline-none text-white font-mono transition-all duration-300 ${
+                            hasDeviceTimedInToday() 
+                            ? 'border-gray-700 focus:ring-2 focus:ring-purple-500 border-purple-500/30' 
+                            : 'border-gray-800 opacity-40 cursor-not-allowed'
+                          }`}
+                        />
+                        <ClipboardList className={`absolute right-3 bottom-3 size-5 ${hasDeviceTimedInToday() ? 'text-purple-400' : 'text-gray-700'}`} />
+                      </div>
+                    </div>
+
+                    {/* Attendance Type Buttons */}
                     <div>
                       <label className="block text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-3">
                         Attendance Type
@@ -282,14 +325,12 @@ export function StudentPage({ onBack }) {
                           }`}
                         >
                           {attendanceType === 'time-in' && (
-                            <motion.div
-                              className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20"
-                              layoutId="activeType"
-                            />
+                            <motion.div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20" layoutId="activeType" />
                           )}
-                          <LogIn className="size-5 sm:size-6 relative z-10 flex-shrink-0" />
+                          <LogIn className="size-5 sm:size-6 relative z-10" />
                           <span className="text-xs sm:text-sm font-mono font-bold relative z-10">TIME IN</span>
                         </button>
+
                         <button
                           onClick={() => setAttendanceType('time-out')}
                           className={`relative overflow-hidden flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 rounded-lg border-2 transition-all ${
@@ -299,12 +340,9 @@ export function StudentPage({ onBack }) {
                           }`}
                         >
                           {attendanceType === 'time-out' && (
-                            <motion.div
-                              className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-pink-500/20"
-                              layoutId="activeType"
-                            />
+                            <motion.div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-pink-500/20" layoutId="activeType" />
                           )}
-                          <LogOut className="size-5 sm:size-6 relative z-10 flex-shrink-0" />
+                          <LogOut className="size-5 sm:size-6 relative z-10" />
                           <span className="text-xs sm:text-sm font-mono font-bold relative z-10">TIME OUT</span>
                         </button>
                       </div>
@@ -317,24 +355,18 @@ export function StudentPage({ onBack }) {
                       whileTap={isNetworkAuthorized ? { scale: 0.98 } : {}}
                       className={`w-full relative overflow-hidden flex items-center justify-center gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-mono font-bold text-base sm:text-lg transition-all ${
                         isNetworkAuthorized
-                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50'
+                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
                           : 'bg-gray-800 text-gray-600 cursor-not-allowed border border-gray-700'
                       }`}
                     >
                       {isNetworkAuthorized ? (
                         <>
-                          <motion.div
-                            className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-400"
-                            initial={{ x: '-100%' }}
-                            whileHover={{ x: '100%' }}
-                            transition={{ duration: 0.6 }}
-                          />
-                          <Zap className="size-5 sm:size-6 relative z-10 flex-shrink-0" />
+                          <Zap className="size-5 sm:size-6 relative z-10" />
                           <span className="relative z-10">SCAN QR CODE</span>
                         </>
                       ) : (
                         <>
-                          <WifiOff className="size-5 sm:size-6 flex-shrink-0" />
+                          <WifiOff className="size-5 sm:size-6" />
                           <span>NETWORK REQUIRED</span>
                         </>
                       )}
@@ -342,10 +374,7 @@ export function StudentPage({ onBack }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <QRScanner
-                      onScanSuccess={handleScanSuccess}
-                      onScanError={handleScanError}
-                    />
+                    <QRScanner onScanSuccess={handleScanSuccess} onScanError={handleScanError} />
                     <button
                       onClick={() => setShowScanner(false)}
                       className="w-full px-6 py-3 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-mono font-semibold border border-gray-700"
@@ -359,54 +388,29 @@ export function StudentPage({ onBack }) {
 
             {/* Recent Activity */}
             {attendanceRecords.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="relative group"
-              >
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="relative group">
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-20 blur"></div>
                 <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6">
                   <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 mb-4 font-mono">
                     {'>'}  RECENT ACTIVITY
                   </h3>
                   <div className="space-y-2">
-                    {attendanceRecords
-                      .slice(-3)
-                      .reverse()
-                      .map((record) => (
-                        <div
-                          key={record.id}
-                          className="flex items-center justify-between p-3 bg-gray-950 rounded-lg border border-gray-800"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              record.type === 'time-in' 
-                                ? 'bg-cyan-500/10 border border-cyan-500/50' 
-                                : 'bg-orange-500/10 border border-orange-500/50'
-                            }`}>
-                              {record.type === 'time-in' ? (
-                                <LogIn className="size-4 text-cyan-400" />
-                              ) : (
-                                <LogOut className="size-4 text-orange-400" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-white font-mono">
-                                {record.name}
-                              </p>
-                              <p className="text-xs text-gray-500 font-mono">
-                                {new Date(record.timestamp).toLocaleString()}
-                              </p>
-                            </div>
+                    {attendanceRecords.slice(-3).reverse().map((record) => (
+                      <div key={record.id} className="flex items-center justify-between p-3 bg-gray-950 rounded-lg border border-gray-800">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${record.type === 'time-in' ? 'bg-cyan-500/10 border border-cyan-500/50' : 'bg-orange-500/10 border border-orange-500/50'}`}>
+                            {record.type === 'time-in' ? <LogIn className="size-4 text-cyan-400" /> : <LogOut className="size-4 text-orange-400" />}
                           </div>
-                          <div className={`text-xs font-mono font-bold ${
-                            record.type === 'time-in' ? 'text-cyan-400' : 'text-orange-400'
-                          }`}>
-                            {record.type === 'time-in' ? '→ IN' : '← OUT'}
+                          <div>
+                            <p className="text-sm font-semibold text-white font-mono">{record.name}</p>
+                            <p className="text-xs text-gray-500 font-mono">{new Date(record.timestamp).toLocaleString()}</p>
                           </div>
                         </div>
-                      ))}
+                        <div className={`text-xs font-mono font-bold ${record.type === 'time-in' ? 'text-cyan-400' : 'text-orange-400'}`}>
+                          {record.type === 'time-in' ? '→ IN' : '← OUT'}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </motion.div>
