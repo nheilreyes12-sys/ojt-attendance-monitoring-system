@@ -2,7 +2,7 @@ import { Calendar, User, LogIn, LogOut, Zap, ClipboardList } from 'lucide-react'
 import { motion } from 'framer-motion';
 
 export function AttendanceCard({ record, index }) {
-  // Determine if time data exists
+  // Sinisigurado nating may value ang Time In at Time Out base sa grouped data
   const hasTimeIn = !!record.timeIn;
   const hasTimeOut = !!record.timeOut;
 
@@ -11,14 +11,14 @@ export function AttendanceCard({ record, index }) {
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="relative group"
+      className="relative group mb-4"
     >
-      {/* Glowing border effect: dynamic transition from cyan to orange */}
+      {/* Glow effect */}
       <div className="absolute -inset-0.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-cyan-500 via-purple-500 to-orange-500 blur"></div>
       
       <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-700 hover:border-cyan-500/50 transition-all">
         
-        {/* Header: Student Name and Date */}
+        {/* Header: Pangalan at Petsa */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-gray-700/50 gap-2">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
@@ -40,26 +40,26 @@ export function AttendanceCard({ record, index }) {
           </div>
         </div>
 
-        {/* Times Grid */}
+        {/* Attendance Times Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {/* Time In Box */}
-          <div className={`p-3 rounded-lg border ${hasTimeIn ? 'bg-cyan-500/5 border-cyan-500/20' : 'bg-gray-800/50 border-gray-700'}`}>
+          <div className={`p-3 rounded-lg border transition-colors ${hasTimeIn ? 'bg-cyan-500/5 border-cyan-500/20' : 'bg-gray-800/50 border-gray-700'}`}>
             <div className="flex items-center gap-2 mb-1">
               <LogIn className={`size-3 ${hasTimeIn ? 'text-cyan-400' : 'text-gray-600'}`} />
               <span className="text-[10px] font-mono uppercase text-gray-500">Time In</span>
             </div>
-            <div className={`text-sm font-black font-mono ${hasTimeIn ? 'text-cyan-400' : 'text-gray-600'}`}>
+            <div className={`text-sm font-black font-mono ${hasTimeIn ? 'text-cyan-400' : 'text-gray-400'}`}>
               {record.timeIn || '--:-- --'}
             </div>
           </div>
 
           {/* Time Out Box */}
-          <div className={`p-3 rounded-lg border ${hasTimeOut ? 'bg-orange-500/5 border-orange-500/20' : 'bg-gray-800/50 border-gray-700'}`}>
+          <div className={`p-3 rounded-lg border transition-colors ${hasTimeOut ? 'bg-orange-500/5 border-orange-500/20' : 'bg-gray-800/50 border-gray-700'}`}>
             <div className="flex items-center gap-2 mb-1">
               <LogOut className={`size-3 ${hasTimeOut ? 'text-orange-400' : 'text-gray-600'}`} />
               <span className="text-[10px] font-mono uppercase text-gray-500">Time Out</span>
             </div>
-            <div className={`text-sm font-black font-mono ${hasTimeOut ? 'text-orange-400' : 'text-gray-600'}`}>
+            <div className={`text-sm font-black font-mono ${hasTimeOut ? 'text-orange-400' : 'text-gray-400'}`}>
               {record.timeOut || '--:-- --'}
             </div>
           </div>
@@ -72,14 +72,12 @@ export function AttendanceCard({ record, index }) {
             <span className="text-[10px] font-mono uppercase text-gray-500">Task Accomplishment</span>
           </div>
           <p className="text-xs text-gray-300 leading-relaxed italic">
-            {/* Logic to filter out 'Ongoing...' placeholder if a real task was submitted */}
-            "{(!record.task || record.task === 'Ongoing...') 
-                ? 'No task details provided yet.' 
-                : record.task}"
+             {/* Ipapakita ang actual task, o 'Ongoing...' kung wala pa, o 'No task submitted' kung empty */}
+            "{record.task && record.task !== 'Ongoing...' ? record.task : (hasTimeOut ? 'No task submitted' : 'Ongoing...')}"
           </p>
         </div>
 
-        {/* Visual Scanner Decoration */}
+        {/* Scan line effect */}
         <motion.div
           className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent"
           initial={{ x: '-100%' }}
