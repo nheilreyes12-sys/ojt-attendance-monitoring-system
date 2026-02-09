@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { 
   Users, 
-  Settings, 
   Database, 
   Activity, 
   Zap, 
@@ -11,7 +10,8 @@ import {
   Printer,
   X,
   Wifi,
-  LayoutDashboard
+  LayoutDashboard,
+  Settings 
 } from 'lucide-react';
 import { AttendanceCard } from './AttendanceCard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,7 +51,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
     });
   }, [records, selectedName]);
 
-  // 3. EXCEL EXPORT (Optimized Layout with Task Accomplishments)
+  // 3. EXCEL EXPORT (Professional Layout with Task Accomplishments)
   const handleExportExcel = () => {
     const exportData = records.map(r => ({
       'STUDENT NAME': (r.student_name || r.studentName || r.name || 'N/A').toUpperCase(),
@@ -163,8 +163,8 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
       {/* --- NETWORK LOCK --- */}
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
         <div className="flex items-center gap-3 mb-4">
-          <Wifi className="size-4 text-cyan-500" />
-          <h2 className="text-xs font-mono text-slate-400 uppercase tracking-tighter">WiFi Lockdown Configuration</h2>
+          <Settings className="size-4 text-cyan-500" />
+          <h2 className="text-xs font-mono text-slate-400 uppercase tracking-tighter">System Configuration</h2>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
            {isEditingSSID ? (
@@ -174,7 +174,9 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
               </>
            ) : (
               <>
-                <div className="flex-1 px-4 py-2 bg-black rounded-xl border border-slate-800 font-mono text-cyan-400">{officeSSID}</div>
+                <div className="flex-1 px-4 py-2 bg-black rounded-xl border border-slate-800 font-mono text-cyan-400 flex items-center gap-2">
+                  <Wifi className="size-3 text-slate-500" /> {officeSSID}
+                </div>
                 <button onClick={() => setIsEditingSSID(true)} className="px-8 py-2 bg-slate-800 rounded-xl font-bold hover:bg-slate-700">EDIT</button>
               </>
            )}
