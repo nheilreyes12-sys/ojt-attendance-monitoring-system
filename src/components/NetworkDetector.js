@@ -8,18 +8,64 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
   const [connectionType, setConnectionType] = useState('');
   const [isScanning, setIsScanning] = useState(true);
   
-  // Use a ref to track the last state to prevent UI flickering
   const lastStatus = useRef(false);
 
-  // Detect network
+  // 1. Define updateStatus FIRST (so other functions can reference it)
+  const updateStatus = useCallback((status, name) => {
+    if (lastStatus.current !== status) {
+      lastStatus.current = status;
+      setIsConnected(status);
+      onNetworkDetected(status, name);
+    }
+  }, [onNetworkDetected]);
+
+  // 2. Define getLocalIP SECOND
+  const getLocalIP = useCallback(() => {
+    return new Promise((resolve) => {
+      const pc = new RTCPeerConnection({ 
+        iceServers: [],
+        iceCandidatePoolSize: 10 
+      });
+      
+      pc.createDataChannel('');
+      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+
+      pc.onicecandidate = (ice) => {
+        if (!ice?.candidate?.candidate) {
+          pc.close();
+          resolve(null);
+          return;
+        }
+
+        const match = ice.candidate.candidate.match(
+          /([0-9]{1,3}(\.[0-9]{1,3}){3})/
+        );
+
+        if (match?.[1]) {
+          pc.close();
+          resolve(match[1]);
+        } 
+        else if (ice.candidate.candidate.includes(".local")) {
+           pc.close();
+           resolve("mDNS/Local");
+        }
+      };
+
+      setTimeout(() => {
+        pc.close();
+        resolve(null);
+      }, 4000);
+    });
+  }, []);
+
+  // 3. Define detectNetwork THIRD (references updateStatus and getLocalIP)
   const detectNetwork = useCallback(async () => {
     setIsScanning(true);
 
-    // ✅ LOCAL DEV BYPASS
     const isLocalhost =
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.startsWith('192.168.'); // Allow local network testing
+      window.location.hostname.startsWith('192.168.');
 
     if (isLocalhost) {
       setDetectedNetwork(`${officeSSID} (LOCAL DEV)`);
@@ -41,20 +87,15 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
 
       const localIP = await getLocalIP();
       
-      // If we can't get an IP (common on secure desktop browsers), 
-      // we check if we were previously connected to avoid flickering
-      // OR we look for the specific office subnet
       const isOfficeNetwork = localIP && (
         localIP.startsWith('192.168.0.') || 
-        localIP.startsWith('192.168.1.') // Added common secondary subnet
+        localIP.startsWith('192.168.1.')
       );
 
       if (isOfficeNetwork) {
         setDetectedNetwork(officeSSID);
         updateStatus(true, officeSSID);
       } else {
-        // On laptops, getLocalIP often returns null or an mDNS string (.local)
-        // If it's null but connection is stable, we might be on a secure browser
         const networkName = localIP
           ? `Network (${localIP})`
           : 'Restricted Network (Secure Browser)';
@@ -68,68 +109,13 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
     }
 
     setIsScanning(false);
-  }, [officeSSID, onNetworkDetected, updateStatus]);
-
-  // Helper to prevent redundant state updates that cause flickering
-  const updateStatus = useCallback((status, name) => {
-  if (lastStatus.current !== status) {
-    lastStatus.current = status;
-    setIsConnected(status);
-    onNetworkDetected(status, name);
-  }
-}, [onNetworkDetected]);
+  }, [officeSSID, updateStatus, getLocalIP]); // Correct dependencies
 
   useEffect(() => {
     detectNetwork();
-    // Increase interval slightly to 8s to give WebRTC time to resolve on laptops
     const interval = setInterval(detectNetwork, 8000);
     return () => clearInterval(interval);
   }, [detectNetwork]);
-
-  // WebRTC local IP (best-effort only)
-  const getLocalIP = () => {
-    return new Promise((resolve) => {
-      const pc = new RTCPeerConnection({ 
-        iceServers: [],
-        // Laptop browsers need this to prioritize local candidates
-        iceCandidatePoolSize: 10 
-      });
-      
-      pc.createDataChannel('');
-      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
-
-      pc.onicecandidate = (ice) => {
-        if (!ice?.candidate?.candidate) {
-          pc.close();
-          resolve(null);
-          return;
-        }
-
-        // Match standard IPv4
-        const match = ice.candidate.candidate.match(
-          /([0-9]{1,3}(\.[0-9]{1,3}){3})/
-        );
-
-        if (match?.[1]) {
-          pc.close();
-          resolve(match[1]);
-        } 
-        // Handle mDNS (e.g., 4f23...local) which is common on laptops
-        else if (ice.candidate.candidate.includes(".local")) {
-           // We can't see the IP, but we detected a local candidate
-           // On some laptops, this is the only info we get
-           pc.close();
-           resolve("mDNS/Local");
-        }
-      };
-
-      // Desktop browsers often take longer to gather ICE candidates
-      setTimeout(() => {
-        pc.close();
-        resolve(null);
-      }, 4000);
-    });
-  };
 
   return (
     <motion.div
@@ -184,25 +170,25 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
         </div>
 
         <div className="text-xs space-y-1 font-mono">
-  <div className="text-gray-300">
-    Detected Network:{' '}
-    <span className="text-cyan-300 font-bold">
-      {detectedNetwork || '—'}
-    </span>
-  </div>
-  <div className="text-gray-300">
-    Required Network:{' '}
-    <span className="text-purple-300 font-bold">{officeSSID}</span>
-  </div>
-  {connectionType && (
-    <div className="text-gray-400">
-      Connection Type:{' '}
-      <span className="text-blue-400 uppercase">
-        {connectionType}
-      </span>
-    </div>
-  )}
-</div>
+          <div className="text-gray-300">
+            Detected Network:{' '}
+            <span className="text-cyan-300 font-bold">
+              {detectedNetwork || '—'}
+            </span>
+          </div>
+          <div className="text-gray-300">
+            Required Network:{' '}
+            <span className="text-purple-300 font-bold">{officeSSID}</span>
+          </div>
+          {connectionType && (
+            <div className="text-gray-400">
+              Connection Type:{' '}
+              <span className="text-blue-400 uppercase">
+                {connectionType}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
