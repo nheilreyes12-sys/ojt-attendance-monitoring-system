@@ -2,7 +2,7 @@ import { Calendar, User, LogIn, LogOut, Zap, ClipboardList } from 'lucide-react'
 import { motion } from 'framer-motion';
 
 export function AttendanceCard({ record, index }) {
-  // Sinisigurado nating may value ang Time In at Time Out base sa grouped data
+  // Check if time data exists from the grouped record
   const hasTimeIn = !!record.timeIn;
   const hasTimeOut = !!record.timeOut;
 
@@ -13,12 +13,12 @@ export function AttendanceCard({ record, index }) {
       transition={{ delay: index * 0.05 }}
       className="relative group mb-4"
     >
-      {/* Glow effect */}
+      {/* Dynamic Glowing Border */}
       <div className="absolute -inset-0.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-cyan-500 via-purple-500 to-orange-500 blur"></div>
       
       <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-700 hover:border-cyan-500/50 transition-all">
         
-        {/* Header: Pangalan at Petsa */}
+        {/* Header: Name and Date */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-gray-700/50 gap-2">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
@@ -40,7 +40,7 @@ export function AttendanceCard({ record, index }) {
           </div>
         </div>
 
-        {/* Attendance Times Grid */}
+        {/* Times Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {/* Time In Box */}
           <div className={`p-3 rounded-lg border transition-colors ${hasTimeIn ? 'bg-cyan-500/5 border-cyan-500/20' : 'bg-gray-800/50 border-gray-700'}`}>
@@ -65,19 +65,18 @@ export function AttendanceCard({ record, index }) {
           </div>
         </div>
 
-        {/* Task Accomplishment Section */}
+        {/* Task Section */}
         <div className="bg-black/30 rounded-lg p-3 border border-gray-800">
           <div className="flex items-center gap-2 mb-1.5">
             <ClipboardList className="size-3 text-purple-400" />
             <span className="text-[10px] font-mono uppercase text-gray-500">Task Accomplishment</span>
           </div>
           <p className="text-xs text-gray-300 leading-relaxed italic">
-             {/* Ipapakita ang actual task, o 'Ongoing...' kung wala pa, o 'No task submitted' kung empty */}
-            "{record.task && record.task !== 'Ongoing...' ? record.task : (hasTimeOut ? 'No task submitted' : 'Ongoing...')}"
+            "{record.task}"
           </p>
         </div>
 
-        {/* Scan line effect */}
+        {/* Animated Scan Line */}
         <motion.div
           className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent"
           initial={{ x: '-100%' }}
