@@ -68,7 +68,7 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
     }
 
     setIsScanning(false);
-  }, [officeSSID, onNetworkDetected]);
+  }, [officeSSID, onNetworkDetected, updateStatus]);
 
   // Helper to prevent redundant state updates that cause flickering
   const updateStatus = useCallback((status, name) => {
