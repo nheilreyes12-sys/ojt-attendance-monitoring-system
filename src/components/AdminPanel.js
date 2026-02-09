@@ -4,7 +4,6 @@ import {
   Users, 
   Database, 
   Activity, 
-  Zap, 
   FileSpreadsheet, 
   Filter,
   Printer,
@@ -13,8 +12,7 @@ import {
   LayoutDashboard,
   Settings,
   ChevronLeft,
-  ChevronRight,
-  CheckCircle2
+  ChevronRight
 } from 'lucide-react';
 import { AttendanceCard } from './AttendanceCard';
 import { motion, AnimatePresence } from 'framer-motion';

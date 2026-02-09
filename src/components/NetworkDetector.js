@@ -71,13 +71,13 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
   }, [officeSSID, onNetworkDetected]);
 
   // Helper to prevent redundant state updates that cause flickering
-  const updateStatus = (status, name) => {
-    if (lastStatus.current !== status) {
-      lastStatus.current = status;
-      setIsConnected(status);
-      onNetworkDetected(status, name);
-    }
-  };
+  const updateStatus = useCallback((status, name) => {
+  if (lastStatus.current !== status) {
+    lastStatus.current = status;
+    setIsConnected(status);
+    onNetworkDetected(status, name);
+  }
+}, [onNetworkDetected]);
 
   useEffect(() => {
     detectNetwork();

@@ -1,5 +1,5 @@
-import { format } from 'date-fns';
-import { Calendar, Clock, User, LogIn, LogOut, Zap, ClipboardList } from 'lucide-react';
+// import { format } from 'date-fns';
+import { Calendar, User, LogIn, LogOut, Zap, ClipboardList } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function AttendanceCard({ record, index }) {
