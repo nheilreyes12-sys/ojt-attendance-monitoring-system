@@ -30,7 +30,7 @@ export function StudentPage({ onBack }) {
     if (savedSSID) {
       setOfficeSSID(savedSSID);
     }
-  } );
+  }, []);
 
   // === DEVICE / DAILY ATTENDANCE CHECK ===
   const getTodayDate = () => {
