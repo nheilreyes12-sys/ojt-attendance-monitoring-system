@@ -77,10 +77,8 @@ const groupedRecords = useMemo(() => {
       
       // Kuhanin ang task accomplishment mula sa database column
       // Chine-check kung may laman at hindi default string
-      if (r.task_accomplishment && 
-          r.task_accomplishment !== 'Ongoing...' && 
-          r.task_accomplishment.trim() !== '') {
-        groups[key].task = r.task_accomplishment;
+      if (r.task_accomplishment && r.task_accomplishment !== 'Ongoing...') {
+      groups[key].task = r.task_accomplishment;
       }
     }
   });
