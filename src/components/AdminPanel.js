@@ -40,64 +40,67 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
  // === FIXED: GROUPING LOGIC ===
 // === FIXED: GROUPING LOGIC sa loob ng AdminPanel ===
 const groupedRecords = useMemo(() => {
-  const groups = {};
-
-  // Siguraduhin na ang records ay array bago i-loop
   if (!Array.isArray(records)) return [];
 
-  records.forEach(r => {
-    // 1. Kunin ang pangalan (fallback sa iba't ibang posibleng column names)
-    const name = (r.student_name || r.studentName || r.name || 'Unknown').trim();
-    
-    // 2. Ayusin ang Petsa
-    const dateObj = new Date(r.timestamp || r.created_at);
-    if (isNaN(dateObj.getTime())) return; // Skip kung invalid date
+  const groups = {};
 
-    const dateKey = dateObj.toLocaleDateString();
+  records.forEach(r => {
+    const name = (r.student_name || 'Unknown').trim();
+
+    // USE timestamp directly (your DB column)
+    const dateObj = new Date(r.timestamp);
+    if (isNaN(dateObj.getTime())) return;
+
+    // Force local timezone consistency
+    const dateKey = dateObj.toLocaleDateString('en-CA'); 
     const key = `${name}-${dateKey}`;
 
     if (!groups[key]) {
       groups[key] = {
         id: key,
         student_name: name,
-        date: dateKey,
+        date: dateObj.toLocaleDateString(),
         timeIn: null,
         timeOut: null,
         task: 'No task submitted',
-        timestamp: r.timestamp || r.created_at 
+        timestamp: r.timestamp
       };
     }
 
-    // 3. Status Check (Dapat tugma sa 'Time In' at 'Time Out' na sinusulat sa StudentPage)
-    const status = (r.status || '').toLowerCase().trim();
+    const status = (r.status || '')
+      .toLowerCase()
+      .trim();
 
-    if (status === 'time in' || status === 'timein') {
-      groups[key].timeIn = dateObj.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    } 
-    else if (status === 'time out' || status === 'timeout') {
-      groups[key].timeOut = dateObj.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-      
-      // Kunin ang task mula sa 'task_accomplishment' column ng Supabase
+    const formattedTime = dateObj.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    if (status === 'time in') {
+      groups[key].timeIn = formattedTime;
+    }
+
+    if (status === 'time out') {
+      groups[key].timeOut = formattedTime;
+
       if (r.task_accomplishment && r.task_accomplishment !== 'Ongoing...') {
         groups[key].task = r.task_accomplishment;
       }
     }
   });
 
-  return Object.values(groups).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return Object.values(groups).sort(
+    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+  );
 }, [records]);
+
   
   // 1. Get Unique Names
-  const uniqueNames = useMemo(() => {
-    const names = records.map(r => r.student_name || r.studentName || r.name).filter(Boolean);
-    return ['all', ...new Set(names)].sort();
-  }, [records]);
+ const uniqueNames = useMemo(() => {
+  const names = groupedRecords.map(r => r.student_name);
+  return ['all', ...new Set(names)].sort();
+}, [groupedRecords]);
+
 
   // 2. Filter Logic (Using groupedRecords instead of raw records)
   const handleApplyFilter = useCallback(() => {
