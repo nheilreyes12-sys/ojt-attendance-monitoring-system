@@ -104,20 +104,24 @@ export function StudentPage({ onBack }) {
       const today = getTodayDate();
 
       if (attendanceType === 'time-in') {
-        // === INSERT NEW ROW FOR TIME IN ===
-        const { error: dbError } = await supabase
-          .from('attendance_logs')
-          .insert([
-            { 
-              student_name: studentName, 
-              student_id: qrData.sessionId, 
-              status: 'Time In',
-              task_accomplishment: 'Ongoing...' 
-            }
-          ]);
+        // === DATABASE LOGIC: ALWAYS INSERT A NEW ROW ===
+      const { error: dbError } = await supabase
+        .from('attendance_logs')
+        .insert([
+          { 
+            student_name: studentName, 
+            student_id: qrData.sessionId, 
+            status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
+            task_accomplishment: attendanceType === 'time-in' ? 'Ongoing...' : dailyTask 
+          }
+        ]);
 
-        if (dbError) throw dbError;
+      if (dbError) throw dbError;
+
+      // Only mark the "Already Timed In" lock if the current scan is Time In
+      if (attendanceType === 'time-in') {
         markDeviceTimedInToday();
+      }
 
       } else {
         // === UPDATE EXISTING ROW FOR TIME OUT ===

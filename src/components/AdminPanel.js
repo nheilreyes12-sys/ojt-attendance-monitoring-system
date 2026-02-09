@@ -145,7 +145,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
             <LayoutDashboard className="text-cyan-500" /> ADMIN PANEL
           </h1>
-          <p className="text-slate-500 font-mono text-sm uppercase">Consolidated Attendance View</p>
+          <p className="text-slate-500 font-mono text-sm uppercase">Attendance Viewer</p>
         </div>
         <button onClick={() => setShowPrintView(true)} className="px-6 py-3 bg-white text-black rounded-xl font-bold flex items-center gap-2 hover:bg-cyan-400 transition-all shadow-lg">
           <Printer size={18} /> GENERATE POSTER
@@ -172,7 +172,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
         <div className="p-6 md:p-8 border-b border-slate-800 flex flex-col lg:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
             <Users className="text-green-500" />
-            <h2 className="text-xl font-bold uppercase tracking-tight">Consolidated Ledger</h2>
+            <h2 className="text-xl font-bold uppercase tracking-tight">Attendance Logs</h2>
           </div>
 
           <div className="flex flex-wrap gap-3 w-full lg:w-auto">
