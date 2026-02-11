@@ -25,23 +25,30 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [showPrintView, setShowPrintView] = useState(false);
 
-  // --- 1. Grouping Logic ---
+  // --- 1. Grouping Logic (Standardized Names & Daily Pairing) ---
   const groupedRecords = useMemo(() => {
     if (!Array.isArray(records)) return [];
     const groups = {};
 
     records.forEach(r => {
-      const name = r.name || r.student_name || "UNKNOWN";
+      // Clean name: trim whitespace and handle potential missing fields
+      const rawName = r.name || r.student_name || "UNKNOWN";
+      const cleanName = rawName.trim(); 
+      
       if (!r.timestamp) return;
 
       const dateObj = new Date(r.timestamp);
-      const key = `${name}-${dateObj.toDateString()}`;
+      // Create a unique key using Clean Name + Specific Date
+      const dateString = dateObj.toDateString(); 
+      const groupKey = `${cleanName}-${dateString}`;
 
-      if (!groups[key]) {
-        groups[key] = {
-          id: key,
-          student_name: name,
-          date: dateObj.toLocaleDateString(),
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          id: groupKey,
+          student_name: cleanName,
+          date: dateObj.toLocaleDateString(undefined, { 
+            year: 'numeric', month: 'long', day: 'numeric' 
+          }),
           timeIn: "--:-- --",
           timeOut: "--:-- --",
           task_accomplishment: "",
@@ -52,11 +59,14 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
       const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const currentStatus = (r.status || r.type || "").toLowerCase();
 
-      if (currentStatus === "time-in") groups[key].timeIn = timeStr;
-      if (currentStatus === "time-out") {
-        groups[key].timeOut = timeStr;
+      // Flexible status matching
+      if (currentStatus.includes("in")) {
+        groups[groupKey].timeIn = timeStr;
+      } 
+      if (currentStatus.includes("out")) {
+        groups[groupKey].timeOut = timeStr;
         if (r.task_accomplishment && r.task_accomplishment !== "Ongoing...") {
-          groups[key].task_accomplishment = r.task_accomplishment;
+          groups[groupKey].task_accomplishment = r.task_accomplishment;
         }
       }
     });
@@ -67,10 +77,11 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
     })).sort((a, b) => b.rawDate - a.rawDate);
   }, [records]);
 
-  // --- 2. Filter Logic ---
+  // --- 2. Filter Logic (Standardized Comparison) ---
   const handleApplyFilter = useCallback(() => {
     setCurrentPage(1);
     const filtered = groupedRecords.filter(r => {
+      // Standardize comparison to prevent duplicates in results
       const matchesName = selectedName === 'all' || r.student_name === selectedName;
       
       let matchesMonth = true;
@@ -89,8 +100,10 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
     handleApplyFilter();
   }, [handleApplyFilter]);
 
+  // --- Unique Names for Dropdown (Cleaned & Deduplicated) ---
   const uniqueNames = useMemo(() => {
     const names = groupedRecords.map(r => r.student_name);
+    // Set automatically removes duplicates
     return ['all', ...new Set(names)].sort();
   }, [groupedRecords]);
 
@@ -111,14 +124,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-    worksheet['!cols'] = [
-      { wch: 30 }, // Name
-      { wch: 15 }, // Date
-      { wch: 12 }, // Time In
-      { wch: 12 }, // Time Out
-      { wch: 50 }, // Tasks
-    ];
+    worksheet['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 50 }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Logs");
@@ -150,9 +156,6 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
           cursor: pointer;
           opacity: 0.7;
         }
-        input[type="month"]::-webkit-calendar-picker-indicator:hover {
-          opacity: 1;
-        }
       `}</style>
 
       {/* Header */}
@@ -183,7 +186,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
         ))}
       </div>
 
-      {/* Network Config (Now Swapped to Top) */}
+      {/* Network Config */}
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col sm:flex-row gap-4 items-center transition-all">
         <div className="flex items-center gap-3">
           <Wifi className="size-4 text-cyan-500" />
@@ -202,12 +205,12 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
         )}
       </div>
 
-      {/* Main Table Section (Now Swapped to Bottom) */}
+      {/* Main Table Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div className="p-6 md:p-8 border-b border-slate-800 flex flex-col lg:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
             <Users className="text-cyan-500" />
-            <h2 className="text-xl font-bold uppercase">Records</h2>
+            <h2 className="text-xl font-bold uppercase">Attendance Records</h2>
           </div>
 
           <div className="flex flex-wrap gap-3 w-full lg:w-auto">
@@ -237,9 +240,9 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
 
             <button 
               onClick={handleExportExcel}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-cyan-900/20"
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg"
             >
-              <FileSpreadsheet size={18} /> EXPORT EXCEL
+              <FileSpreadsheet size={18} /> EXPORT
             </button>
           </div>
         </div>
@@ -262,7 +265,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
               <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 transition-all">
                 <ChevronLeft size={20} />
               </button>
-              <span className="text-xs font-mono text-slate-500">PAGE {currentPage} / {totalPages}</span>
+              <span className="text-xs font-mono text-slate-500 uppercase">Page {currentPage} / {totalPages}</span>
               <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 transition-all">
                 <ChevronRight size={20} />
               </button>
@@ -283,7 +286,7 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
               <p className="text-xl font-bold text-gray-400 border-b-2 border-black pb-4 uppercase tracking-[0.3em]">Attendance Gateway</p>
               {qrCodeUrl && <img src={qrCodeUrl} alt="QR" className="w-80 h-80 mx-auto border-4 border-black p-1 shadow-2xl" />}
               <div className="space-y-4">
-                <p className="text-2xl font-black underline">SCAN TO LOG</p>
+                <p className="text-2xl font-black underline">SCAN TO LOGIN/LOGOUT</p>
                 <div className="bg-gray-100 p-4 rounded-xl font-mono text-lg font-bold">WIFI: {officeSSID}</div>
               </div>
               <button onClick={() => window.print()} className="mt-8 px-10 py-4 bg-black text-white rounded-full font-bold print:hidden hover:scale-105 transition-transform">PRINT NOW</button>
