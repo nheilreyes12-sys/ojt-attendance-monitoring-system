@@ -73,7 +73,7 @@ export function AttendanceCard({ record, index }) {
   </div>
   {/* Ensure this matches record.task from your grouping logic */}
   <p className="text-xs text-gray-300 leading-relaxed italic">
-    "{record.task || 'No task reported'}"
+    "{record.task_accomplishment || 'No task reported'}"
   </p>
 </div>
 

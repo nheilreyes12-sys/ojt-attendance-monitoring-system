@@ -175,19 +175,65 @@ export default function App() {
     }
   }, [session]);
 
-  const fetchAttendance = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .select('*')
-        .order('timestamp', { ascending: false });
+// const fetchAttendance = async () => {
+//     try {
+//       // Gagamit tayo ng .select('*') para sigurado, 
+//       // PERO siguraduhin na walang ibang code na naghahanap ng 'type' column.
+//       const { data, error } = await supabase
+//         .from('attendance_logs')
+//         .select('*') 
+//         .order('timestamp', { ascending: false });
 
-      if (error) throw error;
-      setAttendanceRecords(data || []);
-    } catch (err) {
-      console.error('Error fetching logs:', err.message);
+//       if (error) {
+//         // Ito ay magpapakita kung bakit nabibigo ang request
+//         console.error('Supabase Query Error:', error.message);
+//         return;
+//       }
+
+//       // Kapag successful ang fetch, mawawala na ang 'undefined' sa console
+//       console.log("Successfully fetched records:", data.length);
+//       setAttendanceRecords(data || []);
+//     } catch (err) {
+//       console.error('System Error:', err.message);
+//     }
+//   };
+
+// Sa App.js
+// Sa App.js o kung saan ka nag-fe-fetch ng data:
+// Sa loob ng iyong function App() { ... }
+
+// 1. Siguraduhin na ito ay nasa loob ng function App() { ... }
+const fetchAttendance = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('attendance_logs')
+      .select('*') // Mahalaga ang asterisk para makuha ang task_accomplishment
+      .order('timestamp', { ascending: false });
+
+    if (error) throw error;
+
+    if (data) {
+      // I-map ang database columns (student_name, status) sa UI keys (name, type)
+      const mappedData = data.map(record => ({
+        id: record.id,
+        name: record.student_name, // Mula sa Table Editor
+        timestamp: record.timestamp,
+        type: record.status === 'Time In' ? 'time-in' : 'time-out', // 'type' ang hanap ng UI mo
+        studentId: record.student_id,
+        task_accomplishment: record.task_accomplishment // Siguraduhing kasama ito!
+      }));
+      
+      setAttendanceRecords(mappedData);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching attendance:", error.message);
+  }
+};
+
+// 2. Tawagin ito sa useEffect para mawala ang 'not defined' error sa Line 164/170
+useEffect(() => {
+  fetchAttendance();
+}, []);
 
   const handleUpdateSSID = (newSSID) => {
     setOfficeSSID(newSSID);
@@ -203,7 +249,12 @@ export default function App() {
 
   // Routing Logic
   if (currentPage === 'student') {
-    return <StudentPage onBack={() => setCurrentPage('home')} />;
+   return (
+  <StudentPage 
+    onBack={() => setCurrentPage('home')} 
+    onRecordAdded={fetchAttendance} // Pass the fetch function down
+  />
+);
   }
 
   if (currentPage === 'admin') {

@@ -50,6 +50,8 @@ export function StudentPage({ onBack }) {
     // setDetectedNetwork(network);
   };
 
+  
+
 const handleScanSuccess = async (decodedText) => {
   if (isProcessing.current) return;
   isProcessing.current = true;
@@ -65,38 +67,68 @@ const handleScanSuccess = async (decodedText) => {
     const qrData = JSON.parse(decodedText);
     
     // 1. DATABASE INSERT (Laging bagong row)
-    const { data, error: dbError } = await supabase
-      .from('attendance_logs')
-      .insert([
-        { 
-          student_name: studentName, 
-          student_id: qrData.sessionId, 
-          status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
-          // Kapag Time Out, kukunin ang value sa dailyTask state
-          task_accomplishment: attendanceType === 'time-in' ? 'Ongoing...' : dailyTask,
-          timestamp: new Date().toISOString()
-        }
-      ])
-      .select(); // Pinapabalik ang data para ma-update ang UI agad
+    // 1. I-check kung ano ang sinesend natin
+console.log("SENDING TO DB:", { student_name: studentName, task_accomplishment: dailyTask });
 
-    if (dbError) throw dbError;
+const { data, error: dbError } = await supabase
+  .from('attendance_logs')
+  .insert([{ 
+  student_name: studentName, 
+  student_id: qrData.sessionId, 
+  status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
+  task_accomplishment: attendanceType === 'time-in' 
+      ? 'Ongoing...' 
+      : (dailyTask || 'No task reported'),
+  timestamp: new Date().toISOString()
+}])
+  .select('*');
+
+// 2. TINGNAN KUNG MAY ERROR
+if (dbError) {
+  console.error("SUPABASE INSERT ERROR:", dbError.message);
+  return; // Hihinto rito ang code kung may error
+}
+
+// 3. TINGNAN KUNG MAY BALIK NA DATA
+if (!data || data.length === 0) {
+  console.log("No data returned from Supabase");
+  return;
+}
+
+console.log("SUCCESS! Data from DB:", data[0]);
 
     // 2. SUCCESS LOGIC
     if (attendanceType === 'time-in') {
       markDeviceTimedInToday();
     }
 
-    // I-update ang local UI gamit ang data galing sa DB
-    const dbRecord = data[0];
-    const newRecord = {
-      id: dbRecord.id, // Gamitin ang ID galing sa database
-      name: dbRecord.student_name,
-      timestamp: dbRecord.timestamp,
-      type: dbRecord.status === 'Time In' ? 'time-in' : 'time-out',
-      task: dbRecord.task_accomplishment 
-    };
+const dbRecord = data[0];
+console.log("FULL DB RECORD FROM SUPABASE:", dbRecord);
 
-    setAttendanceRecords(prev => [newRecord, ...prev].slice(0, 10));
+const newRecord = {
+  id: dbRecord.id,
+  name: dbRecord.student_name,
+  timestamp: dbRecord.timestamp,
+  type: dbRecord.status === 'Time In' ? 'time-in' : 'time-out',
+  studentId: dbRecord.student_id,
+  
+  // ✅ DITO MAGIGING 'DEFINED' ANG TASK VALUE MO
+  task_accomplishment: dbRecord.task_accomplishment 
+};
+
+// I-verify sa console: Dapat may task_accomplishment na dito
+console.log("New Record Debug:", newRecord); 
+
+setAttendanceRecords(prev => {
+  const updated = [newRecord, ...prev].slice(0, 10);
+
+  localStorage.setItem('attendanceRecords', JSON.stringify(updated));
+
+  return updated;
+});
+
+
+
     
     toast.success(`SUCCESS: ${attendanceType.toUpperCase()} recorded.`, {
       id: `success-${Date.now()}` 

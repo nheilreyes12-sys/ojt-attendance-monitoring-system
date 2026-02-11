@@ -1,18 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { 
-  Users, 
-  Database, 
-  Activity, 
-  FileSpreadsheet, 
-  Filter,
-  Printer,
-  X,
-  Wifi,
-  LayoutDashboard,
-  Settings,
-  ChevronLeft,
-  ChevronRight
+  Users, Database, Activity, FileSpreadsheet, Filter, Printer, 
+  X, Wifi, LayoutDashboard, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { AttendanceCard } from './AttendanceCard';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,118 +16,120 @@ export function AdminPanel({ records, officeSSID, onUpdateSSID }) {
   const [isEditingSSID, setIsEditingSSID] = useState(false);
   const [tempSSID, setTempSSID] = useState(officeSSID);
   
-  // Filtering States
+  // --- Filtering States ---
   const [selectedName, setSelectedName] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState(''); // Format: YYYY-MM
   const [appliedRecords, setAppliedRecords] = useState([]);
   
-  // Pagination State
+  // --- Pagination State ---
   const [currentPage, setCurrentPage] = useState(1);
   const [showPrintView, setShowPrintView] = useState(false);
 
-  // === NEW: GROUPING LOGIC ===
-  // This merges "Time In" and "Time Out" logs into a single entry per student per day
-  // === NEW: GROUPING LOGIC ===
- // === FIXED: GROUPING LOGIC ===
-// === FIXED: GROUPING LOGIC sa loob ng AdminPanel ===
-const groupedRecords = useMemo(() => {
-  if (!Array.isArray(records)) return [];
+  // --- 1. Grouping Logic ---
+  const groupedRecords = useMemo(() => {
+    if (!Array.isArray(records)) return [];
+    const groups = {};
 
-  const groups = {};
+    records.forEach(r => {
+      const name = r.name || r.student_name || "UNKNOWN";
+      if (!r.timestamp) return;
 
-  records.forEach(r => {
-    const name = (r.student_name || 'Unknown').trim();
+      const dateObj = new Date(r.timestamp);
+      const key = `${name}-${dateObj.toDateString()}`;
 
-    // USE timestamp directly (your DB column)
-    const dateObj = new Date(r.timestamp);
-    if (isNaN(dateObj.getTime())) return;
+      if (!groups[key]) {
+        groups[key] = {
+          id: key,
+          student_name: name,
+          date: dateObj.toLocaleDateString(),
+          timeIn: "--:-- --",
+          timeOut: "--:-- --",
+          task_accomplishment: "",
+          rawDate: dateObj
+        };
+      }
 
-    // Force local timezone consistency
-    const dateKey = dateObj.toLocaleDateString('en-CA'); 
-    const key = `${name}-${dateKey}`;
+      const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const currentStatus = (r.status || r.type || "").toLowerCase();
 
-    if (!groups[key]) {
-      groups[key] = {
-        id: key,
-        student_name: name,
-        date: dateObj.toLocaleDateString(),
-        timeIn: null,
-        timeOut: null,
-        task: 'No task submitted',
-        timestamp: r.timestamp
-      };
-    }
-
-    const status = (r.status || '')
-      .toLowerCase()
-      .trim();
-
-    const formattedTime = dateObj.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
+      if (currentStatus === "time-in") groups[key].timeIn = timeStr;
+      if (currentStatus === "time-out") {
+        groups[key].timeOut = timeStr;
+        if (r.task_accomplishment && r.task_accomplishment !== "Ongoing...") {
+          groups[key].task_accomplishment = r.task_accomplishment;
+        }
+      }
     });
 
-    if (status === 'time in') {
-      groups[key].timeIn = formattedTime;
-    }
+    return Object.values(groups).map(g => ({
+      ...g,
+      task_accomplishment: g.task_accomplishment || "No task reported"
+    })).sort((a, b) => b.rawDate - a.rawDate);
+  }, [records]);
 
-    if (status === 'time out') {
-      groups[key].timeOut = formattedTime;
-
-      if (r.task_accomplishment && r.task_accomplishment !== 'Ongoing...') {
-        groups[key].task = r.task_accomplishment;
-      }
-    }
-  });
-
-  return Object.values(groups).sort(
-    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-  );
-}, [records]);
-
-  
-  // 1. Get Unique Names
- const uniqueNames = useMemo(() => {
-  const names = groupedRecords.map(r => r.student_name);
-  return ['all', ...new Set(names)].sort();
-}, [groupedRecords]);
-
-
-  // 2. Filter Logic (Using groupedRecords instead of raw records)
+  // --- 2. Filter Logic ---
   const handleApplyFilter = useCallback(() => {
     setCurrentPage(1);
     const filtered = groupedRecords.filter(r => {
       const matchesName = selectedName === 'all' || r.student_name === selectedName;
-      return matchesName;
+      
+      let matchesMonth = true;
+      if (selectedMonth) {
+        const [year, month] = selectedMonth.split('-');
+        matchesMonth = r.rawDate.getFullYear() === parseInt(year) && 
+                       (r.rawDate.getMonth() + 1) === parseInt(month);
+      }
+      
+      return matchesName && matchesMonth;
     });
     setAppliedRecords(filtered);
-  }, [groupedRecords, selectedName]);
+  }, [groupedRecords, selectedName, selectedMonth]);
 
   useEffect(() => {
     handleApplyFilter();
   }, [handleApplyFilter]);
 
-  // 3. Pagination Logic
-  const totalPages = Math.ceil(appliedRecords.length / ITEMS_PER_PAGE);
-  const paginatedRecords = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return appliedRecords.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [appliedRecords, currentPage]);
+  const uniqueNames = useMemo(() => {
+    const names = groupedRecords.map(r => r.student_name);
+    return ['all', ...new Set(names)].sort();
+  }, [groupedRecords]);
 
+  // --- 3. Pagination ---
+  const totalPages = Math.ceil(appliedRecords.length / ITEMS_PER_PAGE);
+  const paginatedRecords = appliedRecords.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // --- 4. Enhanced Excel Export ---
   const handleExportExcel = () => {
+    if (appliedRecords.length === 0) return alert("No records to export.");
+
     const exportData = appliedRecords.map(r => ({
       'STUDENT NAME': r.student_name.toUpperCase(),
       'DATE': r.date,
-      'TIME IN': r.timeIn || '--:--',
-      'TIME OUT': r.timeOut || '--:--',
-      'TASK ACCOMPLISHMENT': r.task
+      'TIME IN': r.timeIn,
+      'TIME OUT': r.timeOut,
+      'TASK ACCOMPLISHMENT': r.task_accomplishment
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    worksheet['!cols'] = [
+      { wch: 30 }, // Name
+      { wch: 15 }, // Date
+      { wch: 12 }, // Time In
+      { wch: 12 }, // Time Out
+      { wch: 50 }, // Tasks
+    ];
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Logs");
-    XLSX.writeFile(workbook, `Grouped_OJT_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    const monthLabel = selectedMonth ? `_${selectedMonth}` : '_Full_History';
+    const nameLabel = selectedName !== 'all' ? `_${selectedName.replace(/\s+/g, '_')}` : '';
+    
+    XLSX.writeFile(workbook, `OJT_Report${monthLabel}${nameLabel}.xlsx`);
   };
 
+  // --- 5. QR Generation ---
   const generateStaticQR = useCallback(async () => {
     try {
       const qrData = JSON.stringify({ sessionId: PERMANENT_SESSION_ID, type: 'attendance_qr' });
@@ -148,29 +140,40 @@ const groupedRecords = useMemo(() => {
 
   useEffect(() => { generateStaticQR(); }, [generateStaticQR]);
 
-  const todayRecordsCount = records.filter(r => new Date(r.timestamp).toDateString() === new Date().toDateString()).length;
+  const todayCount = records.filter(r => new Date(r.timestamp).toDateString() === new Date().toDateString()).length;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 p-4 md:p-6 text-slate-100">
-      {/* --- DASHBOARD HEADER --- */}
+      <style>{`
+        input[type="month"]::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          cursor: pointer;
+          opacity: 0.7;
+        }
+        input[type="month"]::-webkit-calendar-picker-indicator:hover {
+          opacity: 1;
+        }
+      `}</style>
+
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
             <LayoutDashboard className="text-cyan-500" /> ADMIN PANEL
           </h1>
-          <p className="text-slate-500 font-mono text-sm uppercase">Attendance Viewer</p>
+          <p className="text-slate-500 font-mono text-sm uppercase tracking-widest">OJT Attendance Monitoring </p>
         </div>
         <button onClick={() => setShowPrintView(true)} className="px-6 py-3 bg-white text-black rounded-xl font-bold flex items-center gap-2 hover:bg-cyan-400 transition-all shadow-lg">
           <Printer size={18} /> GENERATE POSTER
         </button>
       </div>
 
-      {/* --- STATS GRID --- */}
+      {/* Stats Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { label: 'Total Logs', value: records.length, icon: Database, color: 'from-blue-600/20' },
-          { label: 'Today Total Activity', value: todayRecordsCount, icon: Activity, color: 'from-green-600/20' },
-          { label: 'Grouped Daily Sessions', value: appliedRecords.length, icon: Filter, color: 'from-purple-600/20' },
+          { label: 'Today Activity', value: todayCount, icon: Activity, color: 'from-green-600/20' },
+          { label: 'Results Found', value: appliedRecords.length, icon: Filter, color: 'from-cyan-600/20' },
         ].map((stat, idx) => (
           <div key={idx} className={`bg-gradient-to-br ${stat.color} border border-white/5 rounded-2xl p-6`}>
             <stat.icon className="size-5 mb-4 text-slate-400" />
@@ -180,19 +183,45 @@ const groupedRecords = useMemo(() => {
         ))}
       </div>
 
-      {/* --- FILTER & LOGS SECTION --- */}
+      {/* Network Config (Now Swapped to Top) */}
+      <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col sm:flex-row gap-4 items-center transition-all">
+        <div className="flex items-center gap-3">
+          <Wifi className="size-4 text-cyan-500" />
+          <span className="text-xs font-mono text-slate-400 uppercase tracking-tighter">Restriction:</span>
+        </div>
+        {isEditingSSID ? (
+          <div className="flex gap-2 w-full">
+            <input type="text" value={tempSSID} onChange={(e) => setTempSSID(e.target.value)} className="flex-1 px-4 py-2 bg-black border border-cyan-500/50 rounded-xl outline-none font-mono" />
+            <button onClick={() => { onUpdateSSID(tempSSID); setIsEditingSSID(false); }} className="px-6 py-2 bg-cyan-600 rounded-xl font-bold text-xs">SAVE</button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <span className="font-mono text-cyan-400 text-sm tracking-widest">{officeSSID}</span>
+            <button onClick={() => setIsEditingSSID(true)} className="text-[10px] font-bold text-slate-500 hover:text-white underline uppercase">Update SSID</button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Table Section (Now Swapped to Bottom) */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
         <div className="p-6 md:p-8 border-b border-slate-800 flex flex-col lg:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
-            <Users className="text-green-500" />
-            <h2 className="text-xl font-bold uppercase tracking-tight">Attendance Logs</h2>
+            <Users className="text-cyan-500" />
+            <h2 className="text-xl font-bold uppercase">Records</h2>
           </div>
 
           <div className="flex flex-wrap gap-3 w-full lg:w-auto">
+            <input 
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="flex-1 md:w-48 px-4 py-3 bg-black border border-slate-800 rounded-xl text-sm font-mono focus:border-cyan-500 outline-none text-white transition-all"
+            />
+
             <select 
               value={selectedName}
               onChange={(e) => setSelectedName(e.target.value)}
-              className="flex-1 md:min-w-[200px] px-4 py-3 bg-black border border-slate-800 rounded-xl text-sm font-mono focus:border-cyan-500 outline-none"
+              className="flex-1 md:w-56 px-4 py-3 bg-black border border-slate-800 rounded-xl text-sm font-mono focus:border-cyan-500 outline-none text-white"
             >
               <option value="all">All Students</option>
               {uniqueNames.filter(n => n !== 'all').map(name => (
@@ -200,60 +229,41 @@ const groupedRecords = useMemo(() => {
               ))}
             </select>
 
+            {(selectedMonth || selectedName !== 'all') && (
+              <button onClick={() => {setSelectedMonth(''); setSelectedName('all')}} className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            )}
+
             <button 
               onClick={handleExportExcel}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-sm transition-all border border-slate-700"
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-cyan-900/20"
             >
-              <FileSpreadsheet size={18} /> EXPORT
+              <FileSpreadsheet size={18} /> EXPORT EXCEL
             </button>
           </div>
         </div>
 
-        {/* --- DATA TABLE AREA --- */}
         <div className="p-6 md:p-8">
-          <div className="space-y-3 min-h-[400px]">
+          <div className="space-y-3 min-h-[300px]">
             {paginatedRecords.length === 0 ? (
-              <div className="text-center py-20 bg-black/20 rounded-2xl border-2 border-dashed border-slate-800">
-                <p className="text-slate-600 font-mono italic text-sm">No records found</p>
+              <div className="text-center py-20 bg-black/20 rounded-2xl border-2 border-dashed border-slate-800 text-slate-600 font-mono italic uppercase text-xs tracking-widest">
+                No matching logs found
               </div>
             ) : (
               paginatedRecords.map((record, index) => (
-                <AttendanceCard 
-                  key={record.id} 
-                  record={record} 
-                  index={index} 
-                  isGroupedView={true} // Add this prop to update your card UI
-                />
+                <AttendanceCard key={record.id} record={record} index={index} />
               ))
             )}
           </div>
 
-          {/* --- PAGINATION CONTROLS --- */}
           {totalPages > 1 && (
             <div className="mt-8 flex items-center justify-center gap-4">
-              <button 
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 transition-colors"
-              >
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 transition-all">
                 <ChevronLeft size={20} />
               </button>
-              <div className="flex gap-2">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`size-8 rounded-lg font-mono text-xs ${currentPage === i + 1 ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-              <button 
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 transition-colors"
-              >
+              <span className="text-xs font-mono text-slate-500">PAGE {currentPage} / {totalPages}</span>
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 transition-all">
                 <ChevronRight size={20} />
               </button>
             </div>
@@ -261,45 +271,22 @@ const groupedRecords = useMemo(() => {
         </div>
       </div>
 
-      {/* --- NETWORK LOCK --- */}
-      <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-        <div className="flex items-center gap-3 mb-4">
-          <Settings className="size-4 text-cyan-500" />
-          <h2 className="text-xs font-mono text-slate-400 uppercase tracking-tighter">System Configuration</h2>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-           {isEditingSSID ? (
-             <>
-               <input type="text" value={tempSSID} onChange={(e) => setTempSSID(e.target.value)} className="flex-1 px-4 py-2 bg-black border border-cyan-500/50 rounded-xl outline-none" />
-               <button onClick={() => { onUpdateSSID(tempSSID); setIsEditingSSID(false); }} className="px-8 py-2 bg-cyan-600 rounded-xl font-bold">SAVE</button>
-             </>
-           ) : (
-             <>
-               <div className="flex-1 px-4 py-2 bg-black rounded-xl border border-slate-800 font-mono text-cyan-400 flex items-center gap-2">
-                 <Wifi className="size-3 text-slate-500" /> {officeSSID}
-               </div>
-               <button onClick={() => setIsEditingSSID(true)} className="px-8 py-2 bg-slate-800 rounded-xl font-bold hover:bg-slate-700">EDIT</button>
-             </>
-           )}
-        </div>
-      </div>
-
-      {/* --- PRINT MODAL --- */}
+      {/* Poster Modal */}
       <AnimatePresence>
         {showPrintView && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-white overflow-y-auto p-8 flex flex-col items-center">
-            <button onClick={() => setShowPrintView(false)} className="absolute top-8 right-8 p-3 bg-gray-100 rounded-full print:hidden">
-              <X className="size-6 text-gray-800" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-white overflow-y-auto p-8 flex flex-col items-center text-black">
+             <button onClick={() => setShowPrintView(false)} className="fixed top-8 right-8 p-3 bg-gray-100 rounded-full print:hidden">
+              <X size={24} />
             </button>
-            <div className="max-w-2xl w-full text-center space-y-8 py-12 border-[14px] border-double border-black p-12 text-black">
-              <h1 className="text-5xl font-black uppercase tracking-tighter">Attendance</h1>
-              <p className="text-xl font-bold text-gray-500 uppercase tracking-widest border-b-2 border-black pb-4">OJT Monitoring System</p>
-              {qrCodeUrl && <img src={qrCodeUrl} alt="QR" className="w-80 h-80 mx-auto border-4 border-black p-2" />}
+            <div className="max-w-2xl w-full text-center space-y-8 py-12 border-[10px] border-black p-12">
+              <h1 className="text-6xl font-black italic">OJT PORTAL</h1>
+              <p className="text-xl font-bold text-gray-400 border-b-2 border-black pb-4 uppercase tracking-[0.3em]">Attendance Gateway</p>
+              {qrCodeUrl && <img src={qrCodeUrl} alt="QR" className="w-80 h-80 mx-auto border-4 border-black p-1 shadow-2xl" />}
               <div className="space-y-4">
-                <p className="text-2xl font-bold italic underline uppercase">Scan to Time-In / Time-Out</p>
-                <div className="bg-gray-100 p-4 rounded-xl font-mono text-lg">WIFI: {officeSSID}</div>
+                <p className="text-2xl font-black underline">SCAN TO LOG</p>
+                <div className="bg-gray-100 p-4 rounded-xl font-mono text-lg font-bold">WIFI: {officeSSID}</div>
               </div>
-              <button onClick={() => window.print()} className="mt-8 px-10 py-4 bg-black text-white rounded-full font-bold print:hidden">PRINT POSTER</button>
+              <button onClick={() => window.print()} className="mt-8 px-10 py-4 bg-black text-white rounded-full font-bold print:hidden hover:scale-105 transition-transform">PRINT NOW</button>
             </div>
           </motion.div>
         )}

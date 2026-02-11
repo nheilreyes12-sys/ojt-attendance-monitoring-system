@@ -26,7 +26,8 @@ export function AdminPage({ onBack }) {
         name: log.student_name,
         timestamp: new Date(log.timestamp).getTime(),
         type: log.status === 'Time In' ? 'time-in' : 'time-out',
-        studentId: log.student_id
+        studentId: log.student_id,
+        task_accomplishment: log.task_accomplishment
       }));
       setAttendanceRecords(formattedData);
     }
