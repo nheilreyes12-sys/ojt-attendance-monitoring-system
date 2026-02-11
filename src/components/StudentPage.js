@@ -12,12 +12,11 @@ export function StudentPage({ onBack }) {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
   const [studentName, setStudentName] = useState('');
-  // NEW: State for daily task accomplishment
+  // State for daily task accomplishment
   const [dailyTask, setDailyTask] = useState('');
   const [attendanceType, setAttendanceType] = useState('time-in');
   const [officeSSID, setOfficeSSID] = useState('Steerhub First Floor');
   const [isNetworkAuthorized, setIsNetworkAuthorized] = useState(false);
-  // const [detectedNetwork, setDetectedNetwork] = useState('');
 
   // Load attendance records and office SSID from localStorage
   useEffect(() => {
@@ -47,129 +46,122 @@ export function StudentPage({ onBack }) {
 
   const handleNetworkDetected = (isConnected, network) => {
     setIsNetworkAuthorized(isConnected);
-    // setDetectedNetwork(network);
   };
 
-  
+  const handleScanSuccess = async (decodedText) => {
+    if (isProcessing.current) return;
+    isProcessing.current = true;
 
-const handleScanSuccess = async (decodedText) => {
-  if (isProcessing.current) return;
-  isProcessing.current = true;
-
-  if (!studentName.trim()) {
-    toast.error('Please enter your name first');
-    setShowScanner(false);
-    isProcessing.current = false;
-    return;
-  }
-
-  try {
-    const qrData = JSON.parse(decodedText);
-    
-    // 1. DATABASE INSERT (Laging bagong row)
-    // 1. I-check kung ano ang sinesend natin
-console.log("SENDING TO DB:", { student_name: studentName, task_accomplishment: dailyTask });
-
-const { data, error: dbError } = await supabase
-  .from('attendance_logs')
-  .insert([{ 
-  student_name: studentName, 
-  student_id: qrData.sessionId, 
-  status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
-  task_accomplishment: attendanceType === 'time-in' 
-      ? 'Ongoing...' 
-      : (dailyTask || 'No task reported'),
-  timestamp: new Date().toISOString()
-}])
-  .select('*');
-
-// 2. TINGNAN KUNG MAY ERROR
-if (dbError) {
-  console.error("SUPABASE INSERT ERROR:", dbError.message);
-  return; // Hihinto rito ang code kung may error
-}
-
-// 3. TINGNAN KUNG MAY BALIK NA DATA
-if (!data || data.length === 0) {
-  console.log("No data returned from Supabase");
-  return;
-}
-
-console.log("SUCCESS! Data from DB:", data[0]);
-
-    // 2. SUCCESS LOGIC
-    if (attendanceType === 'time-in') {
-      markDeviceTimedInToday();
+    if (!studentName.trim()) {
+      toast.error('Please enter your name first');
+      setShowScanner(false);
+      isProcessing.current = false;
+      return;
     }
 
-const dbRecord = data[0];
-console.log("FULL DB RECORD FROM SUPABASE:", dbRecord);
+    try {
+      const qrData = JSON.parse(decodedText);
+      
+      console.log("SENDING TO DB:", { student_name: studentName, task_accomplishment: dailyTask });
 
-const newRecord = {
-  id: dbRecord.id,
-  name: dbRecord.student_name,
-  timestamp: dbRecord.timestamp,
-  type: dbRecord.status === 'Time In' ? 'time-in' : 'time-out',
-  studentId: dbRecord.student_id,
-  
-  // ✅ DITO MAGIGING 'DEFINED' ANG TASK VALUE MO
-  task_accomplishment: dbRecord.task_accomplishment 
-};
+      const { data, error: dbError } = await supabase
+        .from('attendance_logs')
+        .insert([{ 
+          student_name: studentName, 
+          student_id: qrData.sessionId, 
+          status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
+          task_accomplishment: attendanceType === 'time-in' 
+              ? 'Ongoing...' 
+              : (dailyTask || 'No task reported'),
+          timestamp: new Date().toISOString()
+        }])
+        .select('*');
 
-// I-verify sa console: Dapat may task_accomplishment na dito
-console.log("New Record Debug:", newRecord); 
+      if (dbError) {
+        console.error("SUPABASE INSERT ERROR:", dbError.message);
+        toast.error("Database error. Please try again.");
+        return;
+      }
 
-setAttendanceRecords(prev => {
-  const updated = [newRecord, ...prev].slice(0, 10);
+      if (!data || data.length === 0) {
+        console.log("No data returned from Supabase");
+        return;
+      }
 
-  localStorage.setItem('attendanceRecords', JSON.stringify(updated));
+      // Record device status if Time In was successful
+      if (attendanceType === 'time-in') {
+        markDeviceTimedInToday();
+      }
 
-  return updated;
-});
+      const dbRecord = data[0];
+      const newRecord = {
+        id: dbRecord.id,
+        name: dbRecord.student_name,
+        timestamp: dbRecord.timestamp,
+        type: dbRecord.status === 'Time In' ? 'time-in' : 'time-out',
+        studentId: dbRecord.student_id,
+        task_accomplishment: dbRecord.task_accomplishment 
+      };
 
+      setAttendanceRecords(prev => {
+        const updated = [newRecord, ...prev].slice(0, 10);
+        localStorage.setItem('attendanceRecords', JSON.stringify(updated));
+        return updated;
+      });
 
+      toast.success(`SUCCESS: ${attendanceType.toUpperCase()} recorded.`);
+      setShowScanner(false);
 
-    
-    toast.success(`SUCCESS: ${attendanceType.toUpperCase()} recorded.`, {
-      id: `success-${Date.now()}` 
-    });
-    
-    setShowScanner(false);
+      if (attendanceType === 'time-out') {
+        setStudentName('');
+        setDailyTask(''); 
+      }
 
-    if (attendanceType === 'time-out') {
-      setStudentName('');
-      setDailyTask(''); 
+    } catch (error) {
+      toast.error("Invalid QR Code or System Error");
+      setShowScanner(false);
+    } finally {
+      setTimeout(() => { isProcessing.current = false; }, 3000);
     }
-
-  } catch (error) {
-    toast.error(error.message);
-    setShowScanner(false);
-  } finally {
-    setTimeout(() => { isProcessing.current = false; }, 3000);
-  }
-};
+  };
 
   const handleScanError = (error) => {
     console.error('Scan error:', error);
   };
 
-const startScanning = () => {
+  const startScanning = () => {
+    // 1. Check Name
     if (!studentName.trim()) {
       toast.error('Please enter your name first');
       return;
     }
+
+    // 2. BLOCK DUPLICATE TIME IN (Device-based check)
+    if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
+      toast.error('ACCESS DENIED: You have already recorded a Time In for today.');
+      return;
+    }
+
+    // 3. Prevent Time Out if never Timed In
+    if (attendanceType === 'time-out' && !hasDeviceTimedInToday()) {
+      toast.error('INVALID ACTION: You must Time In before you can Time Out.');
+      return;
+    }
+
+    // 4. Check Task if Timing Out
     if (attendanceType === 'time-out' && !dailyTask.trim()) {
       toast.error('Task accomplishment is required for Time Out');
       return;
     }
+
+    // 5. Check Network
     if (!isNetworkAuthorized) {
       toast.error('NETWORK NOT AUTHORIZED');
       return;
     }
 
-    // REMOVED: isProcessing.current = false; (Let the handler manage the lock)
     setShowScanner(true);
-};
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black overflow-x-hidden">
@@ -238,12 +230,7 @@ const startScanning = () => {
             >
               <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 rounded-2xl opacity-30 group-hover:opacity-50 blur transition-opacity"></div>
               <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border border-gray-700 p-8">
-                {/* Corner decorations */}
-                <div className="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-cyan-500/50 rounded-tl-2xl"></div>
-                <div className="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-cyan-500/50 rounded-tr-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-cyan-500/50 rounded-bl-2xl"></div>
-                <div className="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-cyan-500/50 rounded-br-2xl"></div>
-
+                
                 <div className="text-center mb-8">
                   <motion.div
                     className="inline-flex p-4 bg-gradient-to-br from-cyan-600 to-blue-600 rounded-full mb-4 relative"
@@ -259,7 +246,7 @@ const startScanning = () => {
                     <UserCircle className="size-10 sm:size-12 text-white" />
                   </motion.div>
                   <h2 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2 font-mono">
-                    {'>'}  RECORD ATTENDANCE
+                    {'>'} RECORD ATTENDANCE
                   </h2>
                 </div>
 
@@ -279,7 +266,7 @@ const startScanning = () => {
                       />
                     </div>
 
-                    {/* NEW: Task Accomplishment Field */}
+                    {/* Task Accomplishment Field */}
                     <div>
                       <label className="flex justify-between items-center text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-2">
                         <span>Daily Task Accomplishment</span>
@@ -386,10 +373,10 @@ const startScanning = () => {
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-20 blur"></div>
                 <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6">
                   <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 mb-4 font-mono">
-                    {'>'}  RECENT ACTIVITY
+                    {'>'} RECENT ACTIVITY
                   </h3>
                   <div className="space-y-2">
-                    {attendanceRecords.slice(-3).reverse().map((record) => (
+                    {attendanceRecords.slice(0, 3).map((record) => (
                       <div key={record.id} className="flex items-center justify-between p-3 bg-gray-950 rounded-lg border border-gray-800">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg ${record.type === 'time-in' ? 'bg-cyan-500/10 border border-cyan-500/50' : 'bg-orange-500/10 border border-orange-500/50'}`}>
