@@ -197,45 +197,64 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { Wifi, WifiOff, Signal, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 
-export function NetworkDetector({ officeSSID, onNetworkDetected }) {
+export function NetworkDetector({ officeSSID, allowedLocalIPPrefix = "192.168.0." }) {
   const [isConnected, setIsConnected] = useState(false);
   const [detectedNetwork, setDetectedNetwork] = useState("");
   const [isScanning, setIsScanning] = useState(true);
 
   const lastStatus = useRef(false);
 
-  const updateStatus = useCallback(
-    (status, name) => {
-      if (lastStatus.current !== status) {
-        lastStatus.current = status;
-        setIsConnected(status);
-        onNetworkDetected(status, name);
-      }
-    },
-    [onNetworkDetected]
-  );
+  const updateStatus = useCallback((status, networkName) => {
+    if (lastStatus.current !== status) {
+      lastStatus.current = status;
+      setIsConnected(status);
+      setDetectedNetwork(networkName);
+    }
+  }, []);
+
+  const getLocalIP = useCallback(() => {
+    return new Promise((resolve) => {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
+      pc.onicecandidate = (ice) => {
+        if (!ice?.candidate?.candidate) return;
+        const match = ice.candidate.candidate.match(
+          /([0-9]{1,3}(\.[0-9]{1,3}){3})/
+        );
+        if (match?.[1]) {
+          pc.close();
+          resolve(match[1]);
+        }
+      };
+      setTimeout(() => {
+        pc.close();
+        resolve(null);
+      }, 4000);
+    });
+  }, []);
 
   const detectNetwork = useCallback(async () => {
     setIsScanning(true);
 
     try {
-      const res = await fetch("/api/network-check");
-      const data = await res.json();
+      const localIP = await getLocalIP();
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isOfficeNetwork = localIP && localIP.startsWith(allowedLocalIPPrefix);
+      const isAuthorized = isMobile && isOfficeNetwork;
 
-      if (data.authorized) {
-        setDetectedNetwork(officeSSID);
+      if (isAuthorized) {
         updateStatus(true, officeSSID);
       } else {
-        setDetectedNetwork(data.ip);
-        updateStatus(false, data.ip);
+        const networkName = isMobile ? localIP || "Unknown Network" : "Laptop/Unsupported";
+        updateStatus(false, networkName);
       }
     } catch (err) {
       updateStatus(false, "Error");
-      setDetectedNetwork("Server Error");
     }
 
     setIsScanning(false);
-  }, [officeSSID, updateStatus]);
+  }, [officeSSID, allowedLocalIPPrefix, getLocalIP, updateStatus]);
 
   useEffect(() => {
     detectNetwork();
@@ -248,9 +267,7 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className={`rounded-xl border-2 p-4 ${
-        isConnected
-          ? "border-cyan-500 bg-cyan-500/10"
-          : "border-red-500 bg-red-500/10"
+        isConnected ? "border-cyan-500 bg-cyan-500/10" : "border-red-500 bg-red-500/10"
       }`}
     >
       <div className="flex items-center gap-3 mb-3">
@@ -263,36 +280,21 @@ export function NetworkDetector({ officeSSID, onNetworkDetected }) {
         )}
 
         <div>
-          <div className="text-xs text-gray-400">
-            Network Status
-          </div>
-          <div
-            className={`font-semibold ${
-              isConnected ? "text-cyan-400" : "text-red-400"
-            }`}
-          >
-            {isScanning
-              ? "Scanning..."
-              : isConnected
-              ? "Connected"
-              : "Not Authorized"}
+          <div className="text-xs text-gray-400">Network Status</div>
+          <div className={`font-semibold ${isConnected ? "text-cyan-400" : "text-red-400"}`}>
+            {isScanning ? "Scanning..." : isConnected ? "Connected" : "Not Authorized"}
           </div>
         </div>
 
         {isConnected && (
           <div className="ml-auto flex items-center gap-1 px-2 py-1 bg-cyan-500/20 rounded-full">
             <Zap className="size-3 text-cyan-400" />
-            <span className="text-xs text-cyan-400">
-              SECURE
-            </span>
+            <span className="text-xs text-cyan-400">SECURE</span>
           </div>
         )}
       </div>
 
-      <div className="text-xs text-gray-300">
-        Required Network: {officeSSID}
-      </div>
-
+      <div className="text-xs text-gray-300">Required Network: {officeSSID}</div>
       <div className="text-xs text-gray-400 mt-1">
         Detected Network: {detectedNetwork || "Checking..."}
       </div>
