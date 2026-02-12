@@ -240,8 +240,15 @@ export function NetworkDetector({ officeSSID, allowedLocalIPPrefix = "192.168.0.
     try {
       const localIP = await getLocalIP();
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const isOfficeNetwork = localIP && localIP.startsWith(allowedLocalIPPrefix);
-      const isAuthorized = isMobile && isOfficeNetwork;
+      const isPrivateIP =
+  localIP &&
+  (
+    localIP.startsWith("192.168.") ||
+    localIP.startsWith("10.") ||
+    localIP.startsWith("172.")
+  );
+
+      const isAuthorized = isMobile && isPrivateIP;
 
       if (isAuthorized) {
         updateStatus(true, officeSSID);
