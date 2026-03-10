@@ -1,445 +1,79 @@
-// import { useState, useEffect, useRef } from 'react';
-// import { QRScanner } from './QRScanner';
-// import { NetworkDetector } from './NetworkDetector';
-// import { WifiOff, UserCircle, LogIn, LogOut, Zap, ArrowLeft, ClipboardList } from 'lucide-react';
-// import { motion } from 'framer-motion';
-// import { toast, Toaster } from 'sonner';
-// // IMPORT SUPABASE CLIENT
-// import { supabase } from '../lib/supabaseClient'; 
+// ============================================================
+//  StudentPage.js — UPDATED: Overtime toggle added
+// ============================================================
 
-// export function StudentPage({ onBack }) {
-//   const isProcessing = useRef(false);
-//   const [attendanceRecords, setAttendanceRecords] = useState([]);
-//   const [showScanner, setShowScanner] = useState(false);
-//   const [studentName, setStudentName] = useState('');
-//   // State for daily task accomplishment
-//   const [dailyTask, setDailyTask] = useState('');
-//   const [attendanceType, setAttendanceType] = useState('time-in');
-//   const [officeSSID, setOfficeSSID] = useState('Steerhub First Floor');
-//   const [isNetworkAuthorized, setIsNetworkAuthorized] = useState(false);
-
-//   // Load attendance records and office SSID from localStorage
-//   useEffect(() => {
-//     const saved = localStorage.getItem('attendanceRecords');
-//     if (saved) {
-//       setAttendanceRecords(JSON.parse(saved));
-//     }
-    
-//     const savedSSID = localStorage.getItem('officeSSID');
-//     if (savedSSID) {
-//       setOfficeSSID(savedSSID);
-//     }
-//   }, []);
-
-//   // === DEVICE / DAILY ATTENDANCE CHECK ===
-//   const getTodayDate = () => {
-//     return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-//   };
-
-//   const hasDeviceTimedInToday = () => {
-//     return localStorage.getItem('device_attendance_date') === getTodayDate();
-//   };
-
-//   const markDeviceTimedInToday = () => {
-//     localStorage.setItem('device_attendance_date', getTodayDate());
-//   };
-
-//   const handleNetworkDetected = (isConnected, network) => {
-//     setIsNetworkAuthorized(isConnected);
-//   };
-
-//   const handleScanSuccess = async (decodedText) => {
-//     if (isProcessing.current) return;
-//     isProcessing.current = true;
-
-//     if (!studentName.trim()) {
-//       toast.error('Please enter your name first');
-//       setShowScanner(false);
-//       isProcessing.current = false;
-//       return;
-//     }
-
-//     try {
-//       const qrData = JSON.parse(decodedText);
-      
-//       console.log("SENDING TO DB:", { student_name: studentName, task_accomplishment: dailyTask });
-
-//       const { data, error: dbError } = await supabase
-//         .from('attendance_logs')
-//         .insert([{ 
-//           student_name: studentName, 
-//           student_id: qrData.sessionId, 
-//           status: attendanceType === 'time-in' ? 'Time In' : 'Time Out',
-//           task_accomplishment: attendanceType === 'time-in' 
-//               ? 'Ongoing...' 
-//               : (dailyTask || 'No task reported'),
-//           timestamp: new Date().toISOString()
-//         }])
-//         .select('*');
-
-//       if (dbError) {
-//         console.error("SUPABASE INSERT ERROR:", dbError.message);
-//         toast.error("Database error. Please try again.");
-//         return;
-//       }
-
-//       if (!data || data.length === 0) {
-//         console.log("No data returned from Supabase");
-//         return;
-//       }
-
-//       // Record device status if Time In was successful
-//       if (attendanceType === 'time-in') {
-//         markDeviceTimedInToday();
-//       }
-
-//       const dbRecord = data[0];
-//       const newRecord = {
-//         id: dbRecord.id,
-//         name: dbRecord.student_name,
-//         timestamp: dbRecord.timestamp,
-//         type: dbRecord.status === 'Time In' ? 'time-in' : 'time-out',
-//         studentId: dbRecord.student_id,
-//         task_accomplishment: dbRecord.task_accomplishment 
-//       };
-
-//       setAttendanceRecords(prev => {
-//         const updated = [newRecord, ...prev].slice(0, 10);
-//         localStorage.setItem('attendanceRecords', JSON.stringify(updated));
-//         return updated;
-//       });
-
-//       toast.success(`SUCCESS: ${attendanceType.toUpperCase()} recorded.`);
-//       setShowScanner(false);
-
-//       if (attendanceType === 'time-out') {
-//         setStudentName('');
-//         setDailyTask(''); 
-//       }
-
-//     } catch (error) {
-//       toast.error("Invalid QR Code or System Error");
-//       setShowScanner(false);
-//     } finally {
-//       setTimeout(() => { isProcessing.current = false; }, 3000);
-//     }
-//   };
-
-//   const handleScanError = (error) => {
-//     console.error('Scan error:', error);
-//   };
-
-//   const startScanning = () => {
-//     // 1. Check Name
-//     if (!studentName.trim()) {
-//       toast.error('Please enter your name first');
-//       return;
-//     }
-
-//     // 2. BLOCK DUPLICATE TIME IN (Device-based check)
-//     if (attendanceType === 'time-in' && hasDeviceTimedInToday()) {
-//       toast.error('ACCESS DENIED: You have already recorded a Time In for today.');
-//       return;
-//     }
-
-//     // 3. Prevent Time Out if never Timed In
-//     if (attendanceType === 'time-out' && !hasDeviceTimedInToday()) {
-//       toast.error('INVALID ACTION: You must Time In before you can Time Out.');
-//       return;
-//     }
-
-//     // 4. Check Task if Timing Out
-//     if (attendanceType === 'time-out' && !dailyTask.trim()) {
-//       toast.error('Task accomplishment is required for Time Out');
-//       return;
-//     }
-
-//     // 5. Check Network
-//     if (!isNetworkAuthorized) {
-//       toast.error('NETWORK NOT AUTHORIZED');
-//       return;
-//     }
-
-//     setShowScanner(true);
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black overflow-x-hidden">
-//       <Toaster position="top-center" />
-      
-//       {/* Animated grid background */}
-//       <div className="fixed inset-0 opacity-20 pointer-events-none">
-//         <div className="absolute inset-0" style={{
-//           backgroundImage: `
-//             linear-gradient(rgba(6, 182, 212, 0.1) 1px, transparent 1px),
-//             linear-gradient(90deg, rgba(6, 182, 212, 0.1) 1px, transparent 1px)
-//           `,
-//           backgroundSize: '50px 50px'
-//         }}></div>
-//       </div>
-
-//       {/* Animated gradient orbs */}
-//       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-//         <motion.div
-//           className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-cyan-500/10 rounded-full blur-3xl"
-//           animate={{ x: [0, 100, 0], y: [0, -100, 0] }}
-//           transition={{ duration: 20, repeat: Infinity }}
-//         />
-//         <motion.div
-//           className="absolute bottom-1/4 right-1/4 w-64 h-64 sm:w-96 sm:h-96 bg-purple-500/10 rounded-full blur-3xl"
-//           animate={{ x: [0, -100, 0], y: [0, 100, 0] }}
-//           transition={{ duration: 15, repeat: Infinity }}
-//         />
-//       </div>
-      
-//       {/* Main Content */}
-//       <div className="relative z-10 min-h-screen flex flex-col">
-//         {/* Header */}
-//         <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-20">
-//           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
-//             <div className="flex items-center justify-between">
-//               <button
-//                 onClick={onBack}
-//                 className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 transition-colors group"
-//               >
-//                 <ArrowLeft className="size-5" />
-//                 <span className="font-mono text-sm hidden sm:inline">BACK</span>
-//               </button>
-//               <h1 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 font-mono">
-//                 STUDENT PORTAL
-//               </h1>
-//               <UserCircle className="size-6 sm:size-8 text-cyan-400" />
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Content */}
-//         <div className="flex-1 p-4 sm:p-6 lg:p-8">
-//           <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-//             <NetworkDetector 
-//               officeSSID={officeSSID}
-//               onNetworkDetected={handleNetworkDetected}
-//             />
-
-//             {/* Main Card */}
-//             <motion.div
-//               initial={{ scale: 0.95, opacity: 0 }}
-//               animate={{ scale: 1, opacity: 1 }}
-//               transition={{ delay: 0.1 }}
-//               className="relative group"
-//             >
-//               <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 rounded-2xl opacity-30 group-hover:opacity-50 blur transition-opacity"></div>
-//               <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border border-gray-700 p-8">
-                
-//                 <div className="text-center mb-8">
-//                   <motion.div
-//                     className="inline-flex p-4 bg-gradient-to-br from-cyan-600 to-blue-600 rounded-full mb-4 relative"
-//                     animate={{
-//                       boxShadow: [
-//                         '0 0 20px rgba(6, 182, 212, 0.3)',
-//                         '0 0 40px rgba(6, 182, 212, 0.5)',
-//                         '0 0 20px rgba(6, 182, 212, 0.3)',
-//                       ],
-//                     }}
-//                     transition={{ duration: 2, repeat: Infinity }}
-//                   >
-//                     <UserCircle className="size-10 sm:size-12 text-white" />
-//                   </motion.div>
-//                   <h2 className="text-xl sm:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 mb-2 font-mono">
-//                     {'>'} RECORD ATTENDANCE
-//                   </h2>
-//                 </div>
-
-//                 {!showScanner ? (
-//                   <div className="space-y-4 sm:space-y-6">
-//                     {/* Name Input */}
-//                     <div>
-//                       <label className="block text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-2">
-//                         Your Name
-//                       </label>
-//                       <input
-//                         type="text"
-//                         value={studentName}
-//                         onChange={(e) => setStudentName(e.target.value)}
-//                         placeholder="Enter your full name"
-//                         className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyan-500 outline-none text-white font-mono placeholder-gray-600"
-//                       />
-//                     </div>
-
-//                     {/* Task Accomplishment Field */}
-//                     <div>
-//                       <label className="flex justify-between items-center text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-2">
-//                         <span>Daily Task Accomplishment</span>
-//                         {!hasDeviceTimedInToday() && (
-//                           <span className="text-[10px] text-orange-500 lowercase opacity-70">Enables after Time In</span>
-//                         )}
-//                       </label>
-//                       <div className="relative">
-//                         <textarea
-//                           value={dailyTask}
-//                           onChange={(e) => setDailyTask(e.target.value)}
-//                           disabled={!hasDeviceTimedInToday()}
-//                           placeholder={hasDeviceTimedInToday() ? "What did you work on today?" : "Field locked until Time In recorded."}
-//                           rows={3}
-//                           className={`w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-gray-950 border rounded-lg outline-none text-white font-mono transition-all duration-300 ${
-//                             hasDeviceTimedInToday() 
-//                             ? 'border-gray-700 focus:ring-2 focus:ring-purple-500 border-purple-500/30' 
-//                             : 'border-gray-800 opacity-40 cursor-not-allowed'
-//                           }`}
-//                         />
-//                         <ClipboardList className={`absolute right-3 bottom-3 size-5 ${hasDeviceTimedInToday() ? 'text-purple-400' : 'text-gray-700'}`} />
-//                       </div>
-//                     </div>
-
-//                     {/* Attendance Type Buttons */}
-//                     <div>
-//                       <label className="block text-xs sm:text-sm font-mono text-gray-400 uppercase tracking-wider mb-3">
-//                         Attendance Type
-//                       </label>
-//                       <div className="grid grid-cols-2 gap-3 sm:gap-4">
-//                         <button
-//                           onClick={() => setAttendanceType('time-in')}
-//                           className={`relative overflow-hidden flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 rounded-lg border-2 transition-all ${
-//                             attendanceType === 'time-in'
-//                               ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400'
-//                               : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
-//                           }`}
-//                         >
-//                           {attendanceType === 'time-in' && (
-//                             <motion.div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20" layoutId="activeType" />
-//                           )}
-//                           <LogIn className="size-5 sm:size-6 relative z-10" />
-//                           <span className="text-xs sm:text-sm font-mono font-bold relative z-10">TIME IN</span>
-//                         </button>
-
-//                         <button
-//                           onClick={() => setAttendanceType('time-out')}
-//                           className={`relative overflow-hidden flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 rounded-lg border-2 transition-all ${
-//                             attendanceType === 'time-out'
-//                               ? 'border-orange-500 bg-orange-500/10 text-orange-400'
-//                               : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
-//                           }`}
-//                         >
-//                           {attendanceType === 'time-out' && (
-//                             <motion.div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-pink-500/20" layoutId="activeType" />
-//                           )}
-//                           <LogOut className="size-5 sm:size-6 relative z-10" />
-//                           <span className="text-xs sm:text-sm font-mono font-bold relative z-10">TIME OUT</span>
-//                         </button>
-//                       </div>
-//                     </div>
-
-//                     <motion.button
-//                       onClick={startScanning}
-//                       disabled={!isNetworkAuthorized}
-//                       whileHover={isNetworkAuthorized ? { scale: 1.02 } : {}}
-//                       whileTap={isNetworkAuthorized ? { scale: 0.98 } : {}}
-//                       className={`w-full relative overflow-hidden flex items-center justify-center gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-mono font-bold text-base sm:text-lg transition-all ${
-//                         isNetworkAuthorized
-//                           ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
-//                           : 'bg-gray-800 text-gray-600 cursor-not-allowed border border-gray-700'
-//                       }`}
-//                     >
-//                       {isNetworkAuthorized ? (
-//                         <>
-//                           <Zap className="size-5 sm:size-6 relative z-10" />
-//                           <span className="relative z-10">SCAN QR CODE</span>
-//                         </>
-//                       ) : (
-//                         <>
-//                           <WifiOff className="size-5 sm:size-6" />
-//                           <span>NETWORK REQUIRED</span>
-//                         </>
-//                       )}
-//                     </motion.button>
-//                   </div>
-//                 ) : (
-//                   <div className="space-y-4">
-//                     <QRScanner onScanSuccess={handleScanSuccess} onScanError={handleScanError} />
-//                     <button
-//                       onClick={() => setShowScanner(false)}
-//                       className="w-full px-6 py-3 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-mono font-semibold border border-gray-700"
-//                     >
-//                       CANCEL
-//                     </button>
-//                   </div>
-//                 )}
-//               </div>
-//             </motion.div>
-
-//             {/* Recent Activity */}
-//             {attendanceRecords.length > 0 && (
-//               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="relative group">
-//                 <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-20 blur"></div>
-//                 <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6">
-//                   <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 mb-4 font-mono">
-//                     {'>'} RECENT ACTIVITY
-//                   </h3>
-//                   <div className="space-y-2">
-//                     {attendanceRecords.slice(0, 3).map((record) => (
-//                       <div key={record.id} className="flex items-center justify-between p-3 bg-gray-950 rounded-lg border border-gray-800">
-//                         <div className="flex items-center gap-3">
-//                           <div className={`p-2 rounded-lg ${record.type === 'time-in' ? 'bg-cyan-500/10 border border-cyan-500/50' : 'bg-orange-500/10 border border-orange-500/50'}`}>
-//                             {record.type === 'time-in' ? <LogIn className="size-4 text-cyan-400" /> : <LogOut className="size-4 text-orange-400" />}
-//                           </div>
-//                           <div>
-//                             <p className="text-sm font-semibold text-white font-mono">{record.name}</p>
-//                             <p className="text-xs text-gray-500 font-mono">{new Date(record.timestamp).toLocaleString()}</p>
-//                           </div>
-//                         </div>
-//                         <div className={`text-xs font-mono font-bold ${record.type === 'time-in' ? 'text-cyan-400' : 'text-orange-400'}`}>
-//                           {record.type === 'time-in' ? '→ IN' : '← OUT'}
-//                         </div>
-//                       </div>
-//                     ))}
-//                   </div>
-//                 </div>
-//               </motion.div>
-//             )}
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
 import { useState, useEffect, useRef } from 'react';
 import { QRScanner } from './QRScanner';
 import { NetworkDetector } from './NetworkDetector';
-import { UserCircle, LogIn, LogOut, Zap, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { UserCircle, LogIn, LogOut, Zap, ArrowLeft, CheckCircle2, ClipboardList, Clock, History } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast, Toaster } from 'sonner';
-import { supabase } from '../lib/supabaseClient'; 
 
-export function StudentPage({ onBack }) {
+const API = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
+export function StudentPage({ student, officeSSID: propSSID, onBack, onViewHistory }) {
   const isProcessing = useRef(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [studentName, setStudentName] = useState('');
-  const [dailyTask, setDailyTask] = useState('');
-  const [attendanceType, setAttendanceType] = useState('time-in');
-  const [officeSSID, setOfficeSSID] = useState('Steerhub First Floor');
+  const [showScanner, setShowScanner]               = useState(false);
+  const [dailyTask, setDailyTask]                   = useState('');
+  const [attendanceType, setAttendanceType]         = useState('time-in');
   const [isNetworkAuthorized, setIsNetworkAuthorized] = useState(false);
+  const [officeSSID, setOfficeSSID]                 = useState(propSSID || 'Steerhub First Floor');
+  const [attendanceStatus, setAttendanceStatus]     = useState('none');
+  const [loadingStatus, setLoadingStatus]           = useState(true);
 
-  // Helper to get consistent date key
-  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  // ── OVERTIME STATE ─────────────────────────────────────
+  // isOvertime: toggled by student before Time In
+  // isOvertimeLocked: true once Time In is recorded with overtime ON
+  //                   prevents unchecking after Time In
+  const [isOvertime, setIsOvertime]           = useState(false);
+  const [isOvertimeLocked, setIsOvertimeLocked] = useState(false);
 
-  // Helper to get/set attendance status for the day
-  const getAttendanceStatus = () => {
-    const saved = localStorage.getItem(`attendance_status_${getTodayDate()}`);
-    return saved || 'none'; // values: 'none', 'timed-in', 'completed'
-  };
-
-  const setAttendanceStatus = (status) => {
-    localStorage.setItem(`attendance_status_${getTodayDate()}`, status);
-  };
-
-  // Load office SSID from localStorage
   useEffect(() => {
-    const savedSSID = localStorage.getItem('officeSSID');
-    if (savedSSID) setOfficeSSID(savedSSID);
-  }, []);
+    if (propSSID) setOfficeSSID(propSSID);
+  }, [propSSID]);
+
+  // ── Fetch today's attendance status + overtime flag ────
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!student?.id) return;
+      try {
+        const res  = await fetch(`${API}/api/attendance/status/${student.id}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('ojt_token')}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setAttendanceStatus(data.status);
+
+          // If already timed in with overtime today, restore + lock the toggle
+          if (data.is_overtime) {
+            setIsOvertime(true);
+            setIsOvertimeLocked(true);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch attendance status:', err.message);
+        const today = new Date().toISOString().split('T')[0];
+        const saved = localStorage.getItem(`attendance_status_${today}`);
+        if (saved) setAttendanceStatus(saved);
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+    fetchStatus();
+  }, [student?.id]);
 
   const handleNetworkDetected = (isConnected) => {
     setIsNetworkAuthorized(isConnected);
+  };
+
+  // ── Handle overtime toggle ─────────────────────────────
+  const handleOvertimeToggle = () => {
+    // Cannot uncheck once Time In is recorded with overtime
+    if (isOvertimeLocked) {
+      toast.error('OVERTIME LOCKED: Cannot uncheck after Time In is recorded.');
+      return;
+    }
+    setIsOvertime(prev => !prev);
   };
 
   const handleScanSuccess = async (decodedText) => {
@@ -447,38 +81,49 @@ export function StudentPage({ onBack }) {
     isProcessing.current = true;
 
     try {
-      const qrData = JSON.parse(decodedText);
+      const qrData      = JSON.parse(decodedText);
       const statusLabel = attendanceType === 'time-in' ? 'Time In' : 'Time Out';
 
-      const { error: dbError } = await supabase
-        .from('attendance_logs')
-        .insert([{ 
-          student_name: studentName, 
-          student_id: qrData.sessionId, 
-          status: statusLabel,
-          task_accomplishment: attendanceType === 'time-in' ? 'Ongoing...' : (dailyTask || 'No task reported'),
-          timestamp: new Date().toISOString()
-        }]);
+      const res  = await fetch(`${API}/api/attendance/log`, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:  `Bearer ${localStorage.getItem('ojt_token')}`,
+        },
+        body: JSON.stringify({
+          student_id:          student.id,
+          student_name:        student.full_name,
+          status:              statusLabel,
+          task_accomplishment: attendanceType === 'time-in'
+            ? 'Ongoing...'
+            : (dailyTask.trim() || 'No task reported'),
+          is_overtime:         isOvertime,   // Send overtime flag to backend
+          qr_session_id:       qrData.sessionId,
+        }),
+      });
 
-      if (dbError) throw new Error(dbError.message);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
 
-      // --- UPDATE SESSION STATE ---
       if (attendanceType === 'time-in') {
         setAttendanceStatus('timed-in');
+        // Lock overtime toggle once Time In is recorded
+        if (isOvertime) setIsOvertimeLocked(true);
+        const today = new Date().toISOString().split('T')[0];
+        localStorage.setItem(`attendance_status_${today}`, 'timed-in');
       } else {
         setAttendanceStatus('completed');
+        const today = new Date().toISOString().split('T')[0];
+        localStorage.setItem(`attendance_status_${today}`, 'completed');
       }
 
-      toast.success(`SUCCESS: ${statusLabel} recorded.`);
+      toast.success(`SUCCESS: ${statusLabel} recorded.${isOvertime ? ' (Overtime)' : ''}`);
       setShowScanner(false);
-      
-      if (attendanceType === 'time-out') {
-        setStudentName('');
-        setDailyTask('');
-      }
+
+      if (attendanceType === 'time-out') setDailyTask('');
 
     } catch (error) {
-      toast.error(error.message || "Invalid QR Code or System Error");
+      toast.error(error.message || 'Invalid QR Code or System Error');
       setShowScanner(false);
     } finally {
       setTimeout(() => { isProcessing.current = false; }, 3000);
@@ -486,49 +131,63 @@ export function StudentPage({ onBack }) {
   };
 
   const startScanning = () => {
-    const currentStatus = getAttendanceStatus();
-
-    if (!studentName.trim()) return toast.error('Please enter your name first');
     if (!isNetworkAuthorized) return toast.error('NETWORK NOT AUTHORIZED');
 
-    // 1. Logic for TIME IN
     if (attendanceType === 'time-in') {
-      if (currentStatus === 'timed-in' || currentStatus === 'completed') {
+      if (attendanceStatus === 'timed-in' || attendanceStatus === 'completed') {
         return toast.error('ALREADY TIMED IN: You can only Time In once per day.');
       }
     }
 
-    // 2. Logic for TIME OUT
     if (attendanceType === 'time-out') {
-      if (currentStatus === 'none') {
+      if (attendanceStatus === 'none') {
         return toast.error('ACTION DENIED: You must Time In first.');
       }
-      if (currentStatus === 'completed') {
+      if (attendanceStatus === 'completed') {
         return toast.error('ALREADY COMPLETED: You have already Timed Out for today.');
       }
       if (!dailyTask.trim()) {
-        return toast.error('Task accomplishment is required for Time Out');
+        return toast.error('Task accomplishment is required for Time Out.');
       }
     }
 
     setShowScanner(true);
   };
 
-  const status = getAttendanceStatus();
+  if (loadingStatus) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Zap className="size-8 text-cyan-400 animate-pulse mx-auto" />
+          <p className="text-xs font-mono text-gray-500 uppercase tracking-widest">Loading attendance status...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white">
       <Toaster position="top-center" richColors />
-      
+
       {/* Header */}
       <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 transition-colors font-mono text-xs">
-            <ArrowLeft size={18} /> BACK
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition-colors font-mono text-xs">
+            <ArrowLeft size={18} /> LOGOUT
           </button>
           <h1 className="text-xl font-black tracking-tighter text-cyan-400 font-mono">STUDENT PORTAL</h1>
-          <div className="size-8 bg-gray-800 rounded-full flex items-center justify-center border border-gray-700">
-            <UserCircle size={20} className="text-gray-400" />
+          <div className="flex items-center gap-2">
+            {/* History button */}
+            <button
+              onClick={onViewHistory}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-cyan-500/10 border border-white/10 hover:border-cyan-500/30 transition-all"
+            >
+              <History size={14} className="text-cyan-400" />
+              <span className="font-mono text-[10px] text-gray-300 uppercase hidden sm:inline">History</span>
+            </button>
+            <div className="size-8 bg-cyan-500/10 border border-cyan-500/30 rounded-full flex items-center justify-center">
+              <UserCircle size={18} className="text-cyan-400" />
+            </div>
           </div>
         </div>
       </div>
@@ -536,82 +195,204 @@ export function StudentPage({ onBack }) {
       <div className="max-w-xl mx-auto p-6 space-y-6">
         <NetworkDetector officeSSID={officeSSID} onNetworkDetected={handleNetworkDetected} />
 
-        {/* Status Indicator */}
+        {/* Step indicators */}
         <div className="flex justify-center gap-2">
-            <div className={`px-3 py-1 rounded-full text-[10px] font-mono border ${status !== 'none' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-gray-800 border-gray-700 text-gray-500'}`}>
-                STEP 1: TIME IN {status !== 'none' && '✓'}
-            </div>
-            <div className={`px-3 py-1 rounded-full text-[10px] font-mono border ${status === 'completed' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-gray-800 border-gray-700 text-gray-500'}`}>
-                STEP 2: TIME OUT {status === 'completed' && '✓'}
-            </div>
+          <div className={`px-3 py-1 rounded-full text-[10px] font-mono border transition-all ${
+            attendanceStatus !== 'none' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-gray-800 border-gray-700 text-gray-500'
+          }`}>
+            STEP 1: TIME IN {attendanceStatus !== 'none' && '✓'}
+          </div>
+          <div className={`px-3 py-1 rounded-full text-[10px] font-mono border transition-all ${
+            attendanceStatus === 'completed' ? 'bg-orange-500/20 border-orange-500 text-orange-400' : 'bg-gray-800 border-gray-700 text-gray-500'
+          }`}>
+            STEP 2: TIME OUT {attendanceStatus === 'completed' && '✓'}
+          </div>
+          {/* Show overtime badge if active */}
+          {isOvertime && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="px-3 py-1 rounded-full text-[10px] font-mono border bg-yellow-500/20 border-yellow-500 text-yellow-400"
+            >
+              ⚡ OVERTIME
+            </motion.div>
+          )}
         </div>
 
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-          {status === 'completed' && (
+        {/* Main card */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="bg-gray-900 border border-gray-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden"
+        >
+          {/* Shift complete overlay */}
+          {attendanceStatus === 'completed' && (
             <div className="absolute inset-0 bg-gray-900/90 z-10 flex flex-col items-center justify-center text-center p-6 backdrop-blur-sm">
-                <CheckCircle2 className="size-16 text-green-500 mb-4" />
-                <h2 className="text-2xl font-black font-mono">SHIFT COMPLETE</h2>
-                <p className="text-gray-400 text-sm mt-2">You have recorded your attendance for today.</p>
-                <button onClick={onBack} className="mt-6 text-xs text-cyan-500 underline uppercase tracking-widest">Return Home</button>
+              <CheckCircle2 className="size-16 text-green-500 mb-4" />
+              <h2 className="text-2xl font-black font-mono">SHIFT COMPLETE</h2>
+              {isOvertime && (
+                <div className="mt-2 px-3 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full">
+                  <span className="text-xs font-mono text-yellow-400">⚡ Overtime recorded</span>
+                </div>
+              )}
+              <p className="text-gray-400 text-sm mt-2">
+                You have recorded your attendance for today,{' '}
+                <span className="text-cyan-400">{student?.full_name}</span>.
+              </p>
+              <button onClick={onBack} className="mt-6 text-xs text-cyan-500 underline uppercase tracking-widest">
+                Return Home
+              </button>
             </div>
           )}
 
           {!showScanner ? (
             <div className="space-y-6">
+
+              {/* Student identity */}
+              <div className="bg-black/50 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-3">
+                <div className="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                  <UserCircle size={16} className="text-cyan-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-mono text-gray-500 uppercase">Logged in as</p>
+                  <p className="text-sm font-bold font-mono text-white">{student?.full_name}</p>
+                </div>
+                <div className="ml-auto px-2 py-1 bg-gray-800 rounded-lg border border-gray-700">
+                  <p className="text-[10px] font-mono text-gray-500">Code: <span className="text-cyan-400">{student?.student_code}</span></p>
+                </div>
+              </div>
+
+              {/* ── OVERTIME TOGGLE ─────────────────────────────── */}
+              {/* Only shown on Time In and when not yet timed in */}
+              <AnimatePresence>
+                {attendanceType === 'time-in' && attendanceStatus === 'none' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={`rounded-xl border-2 p-4 transition-all cursor-pointer ${
+                      isOvertime
+                        ? 'border-yellow-500 bg-yellow-500/10'
+                        : 'border-gray-800 bg-black/30 hover:border-gray-700'
+                    }`}
+                    onClick={handleOvertimeToggle}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg border transition-all ${
+                          isOvertime
+                            ? 'bg-yellow-500/20 border-yellow-500/50'
+                            : 'bg-gray-800 border-gray-700'
+                        }`}>
+                          <Clock size={16} className={isOvertime ? 'text-yellow-400' : 'text-gray-500'} />
+                        </div>
+                        <div>
+                          <p className={`text-sm font-bold font-mono transition-colors ${
+                            isOvertime ? 'text-yellow-400' : 'text-gray-400'
+                          }`}>
+                            OVERTIME
+                          </p>
+                          <p className="text-[10px] font-mono text-gray-600 mt-0.5">
+                            {isOvertime
+                              ? 'Time Out will count past 5:00 PM'
+                              : 'Tap to enable — Time Out capped at 5:00 PM'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Toggle switch */}
+                      <div className={`relative w-11 h-6 rounded-full transition-all duration-300 ${
+                        isOvertime ? 'bg-yellow-500' : 'bg-gray-700'
+                      }`}>
+                        <motion.div
+                          animate={{ x: isOvertime ? 20 : 2 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                          className="absolute top-1 w-4 h-4 bg-white rounded-full shadow"
+                        />
+                      </div>
+                    </div>
+
+                    {isOvertime && (
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-[10px] font-mono text-yellow-500/70 mt-3 border-t border-yellow-500/20 pt-2"
+                      >
+                        ⚠ Once you Time In with Overtime, this cannot be unchecked.
+                      </motion.p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Show locked overtime badge after Time In */}
+              {isOvertimeLocked && attendanceStatus === 'timed-in' && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                  <Clock size={14} className="text-yellow-400" />
+                  <p className="text-xs font-mono text-yellow-400">
+                    ⚡ Overtime active — Time Out will count past 5:00 PM
+                  </p>
+                </div>
+              )}
+
+              {/* Task Accomplishment */}
               <div>
-                <label className="block text-[10px] font-mono text-gray-500 uppercase mb-2">Student Identity</label>
-                <input 
-                  type="text" 
-                  value={studentName} 
-                  onChange={(e) => setStudentName(e.target.value)} 
-                  placeholder="Enter Full Name" 
-                  className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 font-mono text-sm focus:border-cyan-500 outline-none" 
+                <label className="flex items-center text-[10px] font-mono text-gray-500 uppercase mb-2">
+                  <span className="flex items-center gap-1.5">
+                    <ClipboardList size={11} /> Task Accomplishment
+                  </span>
+                </label>
+                <textarea
+                  value={dailyTask}
+                  onChange={(e) => setDailyTask(e.target.value)}
+                  placeholder="Describe today's tasks..."
+                  className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 font-mono text-sm focus:border-orange-500 outline-none min-h-[100px] resize-none"
                 />
               </div>
 
-              <div>
-                <label className="block text-[10px] font-mono text-gray-500 uppercase mb-2">Task Accomplishment</label>
-                <textarea 
-                  value={dailyTask} 
-                  onChange={(e) => setDailyTask(e.target.value)} 
-                  disabled={status !== 'timed-in'}
-                  placeholder={status === 'none' ? "Time In first to unlock..." : "Describe today's tasks..."}
-                  className="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 font-mono text-sm focus:border-orange-500 outline-none min-h-[100px] disabled:opacity-30" 
-                />
-              </div>
-
+              {/* Time In / Time Out toggle */}
               <div className="grid grid-cols-2 gap-4">
-                <button 
+                <button
                   type="button"
-                  onClick={() => setAttendanceType('time-in')} 
-                  className={`py-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${attendanceType === 'time-in' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-600'}`}
+                  onClick={() => setAttendanceType('time-in')}
+                  className={`py-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                    attendanceType === 'time-in' ? 'border-cyan-500 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-600'
+                  }`}
                 >
                   <LogIn size={20} />
                   <span className="text-[10px] font-bold font-mono">TIME IN</span>
                 </button>
-                <button 
+                <button
                   type="button"
-                  onClick={() => setAttendanceType('time-out')} 
-                  className={`py-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${attendanceType === 'time-out' ? 'border-orange-500 bg-orange-500/10 text-orange-400' : 'border-gray-800 text-gray-600'}`}
+                  onClick={() => setAttendanceType('time-out')}
+                  className={`py-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                    attendanceType === 'time-out' ? 'border-orange-500 bg-orange-500/10 text-orange-400' : 'border-gray-800 text-gray-600'
+                  }`}
                 >
                   <LogOut size={20} />
                   <span className="text-[10px] font-bold font-mono">TIME OUT</span>
                 </button>
               </div>
 
-              <button 
-                onClick={startScanning} 
+              {/* Scan button */}
+              <button
+                onClick={startScanning}
                 className="w-full bg-white text-black py-4 rounded-2xl font-black font-mono flex items-center justify-center gap-2 hover:bg-cyan-400 transition-colors"
               >
-                <Zap size={18} fill="black" /> SCAN ATTENDANCE
+                <Zap size={18} fill="black" />
+                SCAN ATTENDANCE
+                {isOvertime && <span className="text-[10px] bg-yellow-400 text-black px-2 py-0.5 rounded-full ml-1">OT</span>}
               </button>
+
             </div>
           ) : (
             <div className="space-y-4">
               <div className="rounded-2xl overflow-hidden border-2 border-cyan-500">
                 <QRScanner onScanSuccess={handleScanSuccess} onScanError={(e) => console.log(e)} />
               </div>
-              <button onClick={() => setShowScanner(false)} className="w-full py-3 text-gray-500 font-mono text-xs uppercase">Cancel Scan</button>
+              <button onClick={() => setShowScanner(false)} className="w-full py-3 text-gray-500 font-mono text-xs uppercase">
+                Cancel Scan
+              </button>
             </div>
           )}
         </motion.div>
